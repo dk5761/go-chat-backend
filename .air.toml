@@ -1,0 +1,38 @@
+# .air.toml
+
+[build]
+# The command to build the project
+cmd = "go build -o ./tmp/main.exe ./cmd/server"
+
+# Command to run after building the project
+bin = "./tmp/main.exe"
+
+# Set working directory
+working_dir = "."
+
+# Exclude certain folders and files from watching (e.g., ignore migrations, static files)
+exclude_dir = ["migrations", "tmp", "assets", "docs", "node_modules"]
+
+# Watch specific file extensions
+include_ext = ["go", "tpl", "tmpl", "html"]
+
+# Exclude specific file extensions
+exclude_ext = ["log"]
+
+# Adding a delay before rebuild (useful if there are lots of changes at once)
+delay = 1000 # milliseconds
+
+# Set logging level (debug, info, warning, error)
+log_level = "info"
+
+# If true, Air will display full stack traces for errors in the console
+log_color = true
+
+# Allow coloring output (e.g., logging with colors)
+color = true
+
+# Build directory (Air creates temp files here)
+tmp_dir = "tmp"
+
+# Set to true if you want to reload server only on `.go` file changes
+only_watch_go = true

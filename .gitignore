@@ -1,0 +1,26 @@
+# Binaries
+/server
+
+# Config files
+configs/config.yaml
+
+# Vendor
+vendor/
+
+# Logs
+logs/
+
+# IDE and Editor Configurations
+.idea/
+.vscode/
+*.swp
+
+# System Files
+.DS_Store
+
+# Others
+*.exe
+*.log
+*.out
+*.test
+coverage.out
