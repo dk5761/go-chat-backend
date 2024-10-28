@@ -5,67 +5,114 @@ import (
 
 	"github.com/dk5761/go-serv/configs"
 	"github.com/dk5761/go-serv/internal/infrastructure/cache"
+	"github.com/dk5761/go-serv/internal/infrastructure/container"
 	"github.com/dk5761/go-serv/internal/infrastructure/database"
 	"github.com/dk5761/go-serv/internal/infrastructure/logging"
-	"github.com/dk5761/go-serv/internal/infrastructure/middlewares"
 	"github.com/dk5761/go-serv/internal/infrastructure/storage"
 	"github.com/dk5761/go-serv/internal/infrastructure/tracing"
 	"github.com/dk5761/go-serv/internal/routes"
 	"github.com/gin-gonic/gin"
+	"github.com/jackc/pgx/v4/pgxpool"
+	"go.mongodb.org/mongo-driver/mongo"
 	"go.uber.org/zap"
 )
 
 func main() {
 	// Load configurations
+	config := initConfig()
+
+	// Initialize Logger
+	logging.InitLogger()
+
+	// Initialize Tracing
+	initTracer()
+
+	// Initialize Databases
+	db := initPostgres(config)
+	mongoDB := initMongoDB(config)
+
+	// Initialize Cache
+	cacheClient := cache.InitRedisClient(config.Redis)
+
+	// Initialize Storage Service
+	storageService := initStorage(config)
+
+	// Set up Dependency Container
+	cont := container.NewContainer(db, mongoDB, cacheClient, storageService, config)
+
+	// Set up Gin router
+	router := setupRouter()
+
+	// Initialize routes
+	routes.InitRoutes(router, cont)
+
+	// Start the server
+	startServer(router, config)
+}
+
+// initConfig loads the application configuration
+func initConfig() *configs.Config {
 	config, err := configs.LoadConfig()
 	if err != nil {
 		log.Fatalf("Failed to load config: %v", err)
 	}
+	return config
+}
 
-	// Initialize logger
-	logging.InitLogger()
-
-	// Initialize tracing
+// initTracer initializes tracing
+func initTracer() {
 	if err := tracing.InitTracer(); err != nil {
 		logging.Logger.Fatal("Failed to initialize tracer", zap.Error(err))
 	}
+}
 
-	// Initialize databases
+// initPostgres initializes the PostgreSQL database
+func initPostgres(config *configs.Config) *pgxpool.Pool {
 	db, err := database.InitPostgresDB(config.Postgres)
 	if err != nil {
 		logging.Logger.Fatal("Failed to connect to PostgreSQL", zap.Error(err))
 	}
+	return db
+}
+
+// initMongoDB initializes the MongoDB database
+func initMongoDB(config *configs.Config) *mongo.Database {
 	mongoDB, err := database.InitMongoDB(config.MongoDB)
 	if err != nil {
 		logging.Logger.Fatal("Failed to connect to MongoDB", zap.Error(err))
 	}
+	return mongoDB
+}
 
-	// Initialize cache
-	cacheClient := cache.InitRedisClient(config.Redis)
-
-	// Initialize storage service
+// initStorage initializes the storage service based on the provider
+func initStorage(config *configs.Config) storage.StorageService {
 	var storageService storage.StorageService
-	if config.Storage.Provider == "s3" {
+	var err error
+
+	switch config.Storage.Provider {
+	case "s3":
 		storageService = storage.NewS3StorageService(config.Storage.S3Config)
-	} else if config.Storage.Provider == "gdrive" {
-		var err error
+	case "gdrive":
 		storageService, err = storage.NewGDriveStorageService(config.Storage.GDriveConfig)
 		if err != nil {
 			logging.Logger.Fatal("Failed to initialize Google Drive storage", zap.Error(err))
 		}
-	} else {
+	default:
 		logging.Logger.Fatal("Invalid storage provider specified")
 	}
 
-	// Set up Gin router
+	return storageService
+}
+
+// setupRouter configures Gin router with middleware
+func setupRouter() *gin.Engine {
 	router := gin.New()
 	router.Use(gin.Recovery())
-	router.Use(middlewares.RequestLogger())
+	return router
+}
 
-	// Initialize routes
-	routes.InitRoutes(router, db, mongoDB, cacheClient, storageService, config)
-
-	// Start the server
+// startServer starts the HTTP server
+func startServer(router *gin.Engine, config *configs.Config) {
 	if err := router.Run(config.Server.Address); err != nil {
 		logging.Logger.Fatal("Failed to run server", zap.Error(err))
 	}

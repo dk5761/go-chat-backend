@@ -2,9 +2,9 @@ package auth
 
 import (
 	"context"
-	"errors"
 	"time"
 
+	"github.com/dk5761/go-serv/internal/domain/common"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v4"
 	"github.com/jackc/pgx/v4/pgxpool"
@@ -25,7 +25,7 @@ func (r *postgresUserRepository) CreateUser(ctx context.Context, user *User) err
     `
 	_, err := r.db.Exec(ctx, query, user.ID, user.Email, user.PasswordHash, user.TokenVersion, user.LastLogin)
 	if err != nil {
-		return err
+		return common.ErrConflict // e.g., if a duplicate email is inserted
 	}
 	return nil
 }
@@ -42,7 +42,7 @@ func (r *postgresUserRepository) GetUserByEmail(ctx context.Context, email strin
 	err := row.Scan(&user.ID, &user.Email, &user.PasswordHash, &user.TokenVersion, &user.LastLogin)
 	if err != nil {
 		if err == pgx.ErrNoRows {
-			return nil, errors.New("user not found")
+			return nil, common.ErrNotFound
 		}
 		return nil, err
 	}
@@ -60,7 +60,7 @@ func (r *postgresUserRepository) UpdateTokenVersion(ctx context.Context, userID 
 		return err
 	}
 	if cmdTag.RowsAffected() == 0 {
-		return errors.New("no rows were updated")
+		return common.ErrNotFound // No user with this ID
 	}
 	return nil
 }
@@ -76,7 +76,7 @@ func (r *postgresUserRepository) UpdateLastLogin(ctx context.Context, userID uui
 		return err
 	}
 	if cmdTag.RowsAffected() == 0 {
-		return errors.New("no rows were updated")
+		return common.ErrNotFound // No user with this ID
 	}
 	return nil
 }
@@ -93,7 +93,7 @@ func (r *postgresUserRepository) GetUserByID(ctx context.Context, userID uuid.UU
 	err := row.Scan(&user.ID, &user.Email, &user.PasswordHash, &user.TokenVersion, &user.LastLogin)
 	if err != nil {
 		if err == pgx.ErrNoRows {
-			return nil, errors.New("user not found")
+			return nil, common.ErrNotFound
 		}
 		return nil, err
 	}
