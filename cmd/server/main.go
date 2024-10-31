@@ -38,7 +38,7 @@ func main() {
 	storageService := initStorage(config)
 
 	// Set up Dependency Container
-	cont := container.NewContainer(db, mongoDB, cacheClient, storageService, config)
+	cont := container.NewContainer(db, config)
 
 	// Set up Gin router
 	router := setupRouter()
