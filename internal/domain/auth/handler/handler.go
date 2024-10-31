@@ -1,19 +1,21 @@
-package auth
+package handler
 
 import (
 	"net/http"
 
+	"github.com/dk5761/go-serv/internal/domain/auth/repository"
+	"github.com/dk5761/go-serv/internal/domain/auth/service"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 )
 
 type AuthHandler struct {
-	AuthService AuthService
-	JwtService  JWTService     // Changed to uppercase
-	UserRepo    UserRepository // Changed to uppercase
+	AuthService service.AuthService
+	JwtService  service.JWTService        // Changed to uppercase
+	UserRepo    repository.UserRepository // Changed to uppercase
 }
 
-func NewAuthHandler(authService AuthService, jwtService JWTService, userRepo UserRepository) *AuthHandler {
+func NewAuthHandler(authService service.AuthService, jwtService service.JWTService, userRepo repository.UserRepository) *AuthHandler {
 	return &AuthHandler{
 		AuthService: authService,
 		JwtService:  jwtService,

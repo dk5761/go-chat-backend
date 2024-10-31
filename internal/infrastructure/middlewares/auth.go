@@ -4,13 +4,14 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/dk5761/go-serv/internal/domain/auth"
+	authRepo "github.com/dk5761/go-serv/internal/domain/auth/repository"
+	authService "github.com/dk5761/go-serv/internal/domain/auth/service"
 	"github.com/dk5761/go-serv/internal/infrastructure/logging"
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 )
 
-func JWTAuthMiddleware(jwtService auth.JWTService, userRepo auth.UserRepository) gin.HandlerFunc {
+func JWTAuthMiddleware(jwtService authService.JWTService, userRepo authRepo.UserRepository) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		authHeader := c.GetHeader("Authorization")
 		if authHeader == "" {

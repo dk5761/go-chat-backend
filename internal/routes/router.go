@@ -18,5 +18,5 @@ func InitRoutes(router *gin.Engine, container *container.Container) {
 
 	// Register feature routes
 	RegisterAuthRoutes(router, container)
-	RegisterChatRoutes(router, container)
+	// RegisterChatRoutes(router, container)
 }

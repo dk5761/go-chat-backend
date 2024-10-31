@@ -1,10 +1,12 @@
-package auth
+package service
 
 import (
 	"context"
 	"errors"
 	"time"
 
+	"github.com/dk5761/go-serv/internal/domain/auth/models"
+	"github.com/dk5761/go-serv/internal/domain/auth/repository"
 	"github.com/dk5761/go-serv/internal/domain/common/helpers"
 	"github.com/dk5761/go-serv/internal/infrastructure/logging"
 	"github.com/google/uuid"
@@ -14,16 +16,16 @@ import (
 type AuthService interface {
 	SignUp(ctx context.Context, email, password string) error
 	Login(ctx context.Context, email, password string) (string, error)
-	GetUserByID(ctx context.Context, userID uuid.UUID) (*User, error)
+	GetUserByID(ctx context.Context, userID uuid.UUID) (*models.User, error)
 	Logout(ctx context.Context, userID uuid.UUID) error
 }
 
 type authService struct {
-	userRepo   UserRepository
+	userRepo   repository.UserRepository
 	jwtService JWTService
 }
 
-func NewAuthService(userRepo UserRepository, jwtService JWTService) AuthService {
+func NewAuthService(userRepo repository.UserRepository, jwtService JWTService) AuthService {
 	return &authService{userRepo, jwtService}
 }
 
@@ -39,7 +41,7 @@ func (s *authService) SignUp(ctx context.Context, email, password string) error 
 		return err
 	}
 
-	user := &User{
+	user := &models.User{
 		ID:           uuid.New(),
 		Email:        email,
 		PasswordHash: hashedPassword,
@@ -75,10 +77,10 @@ func (s *authService) Login(ctx context.Context, email, password string) (string
 	return token, nil
 }
 
-func (s *authService) GetUserByID(ctx context.Context, userID uuid.UUID) (*User, error) {
+func (s *authService) GetUserByID(ctx context.Context, userID uuid.UUID) (*models.User, error) {
 	// Implement a method to get user by ID
 
-	return &User{}, nil
+	return &models.User{}, nil
 }
 
 func (s *authService) Logout(ctx context.Context, userID uuid.UUID) error {

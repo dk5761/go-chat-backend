@@ -1,9 +1,10 @@
-package auth
+package repository
 
 import (
 	"context"
 	"time"
 
+	"github.com/dk5761/go-serv/internal/domain/auth/models"
 	"github.com/dk5761/go-serv/internal/domain/common"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v4"
@@ -18,7 +19,7 @@ func NewPostgresUserRepository(db *pgxpool.Pool) UserRepository {
 	return &postgresUserRepository{db}
 }
 
-func (r *postgresUserRepository) CreateUser(ctx context.Context, user *User) error {
+func (r *postgresUserRepository) CreateUser(ctx context.Context, user *models.User) error {
 	query := `
         INSERT INTO users (id, email, password_hash, token_version, last_login)
         VALUES ($1, $2, $3, $4, $5)
@@ -30,7 +31,7 @@ func (r *postgresUserRepository) CreateUser(ctx context.Context, user *User) err
 	return nil
 }
 
-func (r *postgresUserRepository) GetUserByEmail(ctx context.Context, email string) (*User, error) {
+func (r *postgresUserRepository) GetUserByEmail(ctx context.Context, email string) (*models.User, error) {
 	query := `
         SELECT id, email, password_hash, token_version, last_login
         FROM users
@@ -38,7 +39,7 @@ func (r *postgresUserRepository) GetUserByEmail(ctx context.Context, email strin
     `
 	row := r.db.QueryRow(ctx, query, email)
 
-	var user User
+	var user models.User
 	err := row.Scan(&user.ID, &user.Email, &user.PasswordHash, &user.TokenVersion, &user.LastLogin)
 	if err != nil {
 		if err == pgx.ErrNoRows {
@@ -81,7 +82,7 @@ func (r *postgresUserRepository) UpdateLastLogin(ctx context.Context, userID uui
 	return nil
 }
 
-func (r *postgresUserRepository) GetUserByID(ctx context.Context, userID uuid.UUID) (*User, error) {
+func (r *postgresUserRepository) GetUserByID(ctx context.Context, userID uuid.UUID) (*models.User, error) {
 	query := `
         SELECT id, email, password_hash, token_version, last_login
         FROM users
@@ -89,7 +90,7 @@ func (r *postgresUserRepository) GetUserByID(ctx context.Context, userID uuid.UU
     `
 	row := r.db.QueryRow(ctx, query, userID)
 
-	var user User
+	var user models.User
 	err := row.Scan(&user.ID, &user.Email, &user.PasswordHash, &user.TokenVersion, &user.LastLogin)
 	if err != nil {
 		if err == pgx.ErrNoRows {

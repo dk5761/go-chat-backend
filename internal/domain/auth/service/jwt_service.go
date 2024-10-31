@@ -1,10 +1,11 @@
-package auth
+package service
 
 import (
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
+
 )
 
 type JWTService interface {

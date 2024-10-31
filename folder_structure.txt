@@ -1,0 +1,82 @@
+Folder PATH listing for volume Volume
+Volume serial number is 84E0-0701
+D:.
+¦   .air.toml
+¦   .env
+¦   .gitignore
+¦   docker-compose.yml
+¦   folder_structure.txt
+¦   go.mod
+¦   go.sum
+¦   makefile
+¦   
++---cmd
+¦   +---server
+¦           main.go
+¦           
++---configs
+¦       config.go
+¦       
++---internal
+¦   +---domain
+¦   ¦   +---auth
+¦   ¦   ¦       handler.go
+¦   ¦   ¦       jwt_service.go
+¦   ¦   ¦       model.go
+¦   ¦   ¦       postgres_repository.go
+¦   ¦   ¦       repository.go
+¦   ¦   ¦       service.go
+¦   ¦   ¦       
+¦   ¦   +---chat
+¦   ¦   ¦       handler.go
+¦   ¦   ¦       model.go
+¦   ¦   ¦       mongo_repository.go
+¦   ¦   ¦       repository.go
+¦   ¦   ¦       service.go
+¦   ¦   ¦       
+¦   ¦   +---common
+¦   ¦       ¦   errors.go
+¦   ¦       ¦   
+¦   ¦       +---helpers
+¦   ¦               helper.go
+¦   ¦               
+¦   +---infrastructure
+¦   ¦   +---cache
+¦   ¦   ¦       redis.go
+¦   ¦   ¦       
+¦   ¦   +---container
+¦   ¦   ¦       container.go
+¦   ¦   ¦       
+¦   ¦   +---database
+¦   ¦   ¦       mongo.go
+¦   ¦   ¦       postgres.go
+¦   ¦   ¦       
+¦   ¦   +---logging
+¦   ¦   ¦       logger.go
+¦   ¦   ¦       
+¦   ¦   +---middlewares
+¦   ¦   ¦       auth.go
+¦   ¦   ¦       error_handle.go
+¦   ¦   ¦       logging.go
+¦   ¦   ¦       tracing.go
+¦   ¦   ¦       
+¦   ¦   +---storage
+¦   ¦   ¦       gdrive.go
+¦   ¦   ¦       s3.go
+¦   ¦   ¦       storage.go
+¦   ¦   ¦       
+¦   ¦   +---tracing
+¦   ¦           tracer.go
+¦   ¦           
+¦   +---routes
+¦           auth_routes.go
+¦           chat_routes.go
+¦           router.go
+¦           
++---migrations
+¦       001_create_users_table.up.sql
+¦       002_create_messages_collection.js
+¦       
++---scripts
+        migrate.sh
+        
