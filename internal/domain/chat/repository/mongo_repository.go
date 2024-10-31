@@ -1,9 +1,10 @@
-package chat
+package repository
 
 import (
 	"context"
 	"time"
 
+	"github.com/dk5761/go-serv/internal/domain/chat/models"
 	"github.com/google/uuid"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
@@ -21,7 +22,7 @@ func NewMongoMessageRepository(db *mongo.Database) MessageRepository {
 }
 
 // SaveMessage saves a new message to the MongoDB collection.
-func (r *mongoMessageRepository) SaveMessage(ctx context.Context, msg *Message) error {
+func (r *mongoMessageRepository) SaveMessage(ctx context.Context, msg *models.Message) error {
 	// Set the creation time
 	msg.CreatedAt = time.Now()
 
@@ -34,7 +35,7 @@ func (r *mongoMessageRepository) SaveMessage(ctx context.Context, msg *Message) 
 }
 
 // GetMessages retrieves messages between two users, sorted by creation time.
-func (r *mongoMessageRepository) GetMessages(ctx context.Context, userID1, userID2 uuid.UUID) ([]*Message, error) {
+func (r *mongoMessageRepository) GetMessages(ctx context.Context, userID1, userID2 uuid.UUID) ([]*models.Message, error) {
 	// Create a filter to get messages where sender and receiver match
 	filter := bson.M{
 		"$or": []bson.M{
@@ -61,9 +62,9 @@ func (r *mongoMessageRepository) GetMessages(ctx context.Context, userID1, userI
 	defer cursor.Close(ctx)
 
 	// Iterate over the cursor and decode each message
-	var messages []*Message
+	var messages []*models.Message
 	for cursor.Next(ctx) {
-		var msg Message
+		var msg models.Message
 		if err := cursor.Decode(&msg); err != nil {
 			return nil, err
 		}

@@ -1,8 +1,10 @@
-package chat
+package handler
 
 import (
 	"net/http"
 
+	"github.com/dk5761/go-serv/internal/domain/chat/models"
+	"github.com/dk5761/go-serv/internal/domain/chat/service"
 	"github.com/dk5761/go-serv/internal/infrastructure/logging"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -11,10 +13,10 @@ import (
 )
 
 type ChatHandler struct {
-	chatService ChatService
+	chatService service.ChatService
 }
 
-func NewChatHandler(chatService ChatService) *ChatHandler {
+func NewChatHandler(chatService service.ChatService) *ChatHandler {
 	return &ChatHandler{chatService}
 }
 
@@ -56,7 +58,7 @@ func (h *ChatHandler) HandleWebSocket(c *gin.Context) {
 }
 
 func (h *ChatHandler) SendMessage(c *gin.Context) {
-	var msg Message
+	var msg models.Message
 	if err := c.BindJSON(&msg); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
 		return
