@@ -107,3 +107,26 @@ func (s *authService) Logout(ctx context.Context, userID uuid.UUID) error {
 	// Update the user's LastLoginToken to the new timestamp
 	return s.userRepo.UpdateLastLogin(ctx, userID, user.LastLogin, newTokenTimestamp)
 }
+
+func (s *authService) UpdateUserProfile(ctx context.Context, userID uuid.UUID, updates models.User) (*models.User, error) {
+	// Fetch the current user from the repository
+	user, err := s.userRepo.GetUserByID(ctx, userID)
+	if err != nil {
+		return nil, errors.New("user not found")
+	}
+
+	// Update only the fields that are allowed
+	if updates.Email != "" && updates.Email != user.Email {
+		user.Email = updates.Email
+	}
+
+	// Update timestamp fields
+	user.UpdatedAt = time.Now()
+
+	// Save updated user information
+	if err := s.userRepo.UpdateUser(ctx, user); err != nil {
+		return nil, err
+	}
+
+	return user, nil
+}

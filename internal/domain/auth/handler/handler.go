@@ -5,6 +5,7 @@ import (
 	"net/http"
 
 	"github.com/dk5761/go-serv/internal/domain/auth/dto"
+	"github.com/dk5761/go-serv/internal/domain/auth/models"
 	"github.com/dk5761/go-serv/internal/domain/auth/repository"
 	"github.com/dk5761/go-serv/internal/domain/auth/service"
 	"github.com/gin-gonic/gin"
@@ -93,4 +94,79 @@ func (h *AuthHandler) Profile(c *gin.Context) {
 		Email:     user.Email,
 		LastLogin: user.LastLogin,
 	})
+}
+
+func (h *AuthHandler) RefreshToken(c *gin.Context) {
+	var req dto.RefreshTokenRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request parameters"})
+		return
+	}
+
+	// Validate and refresh the token
+	newToken, err := h.JwtService.RefreshToken(c.Request.Context(), req.RefreshToken)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid or expired refresh token"})
+		return
+	}
+
+	c.JSON(http.StatusOK, dto.AuthResponse{Token: newToken})
+}
+
+func (h *AuthHandler) UpdateProfile(c *gin.Context) {
+	userIDValue, exists := c.Get("userID")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+		return
+	}
+
+	userID, ok := userIDValue.(uuid.UUID)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid user ID"})
+		return
+	}
+
+	var req dto.UpdateProfileRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request parameters"})
+		return
+	}
+	updates := models.User{
+		Email: req.Email,
+	}
+
+	updatedUser, err := h.AuthService.UpdateUserProfile(c.Request.Context(), userID, updates)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update profile"})
+		return
+	}
+
+	c.JSON(http.StatusOK, dto.ProfileResponse{
+		ID:        updatedUser.ID.String(),
+		Email:     updatedUser.Email,
+		LastLogin: updatedUser.LastLogin,
+		// Include any additional updated fields
+	})
+}
+
+func (h *AuthHandler) DeleteAccount(c *gin.Context) {
+	userIDValue, exists := c.Get("userID")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+		return
+	}
+
+	userID, ok := userIDValue.(uuid.UUID)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid user ID"})
+		return
+	}
+
+	err := h.AuthService.DeleteUser(c.Request.Context(), userID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete account"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "Account deleted successfully"})
 }

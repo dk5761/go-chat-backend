@@ -24,4 +24,7 @@ type UserRepository interface {
 
 	// UpdateUserTimestamps updates the updated_at field for a user.
 	UpdateUserTimestamps(ctx context.Context, userID uuid.UUID, updatedAt time.Time) error
+
+	UpdateUser(ctx context.Context, user *models.User) error
+	DeleteUser(ctx context.Context, userID uuid.UUID) error
 }

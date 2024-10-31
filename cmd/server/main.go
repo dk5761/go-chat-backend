@@ -21,6 +21,12 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/jackc/pgx/v4/pgxpool"
 	"go.mongodb.org/mongo-driver/mongo"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/exporters/otlp/otlptrace"
+	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp"
+	"go.opentelemetry.io/otel/sdk/resource"
+	"go.opentelemetry.io/otel/sdk/trace"
+	semconv "go.opentelemetry.io/otel/semconv/v1.4.0"
 	"go.uber.org/zap"
 )
 
@@ -71,6 +77,41 @@ func initTracer() {
 	if err := tracing.InitTracer(); err != nil {
 		logging.Logger.Fatal("Failed to initialize tracer", zap.Error(err))
 	}
+}
+
+func InitTracing() {
+	// Set up the Jaeger exporter
+	headers := map[string]string{
+		"content-type": "application/json",
+	}
+	exporter, err := otlptrace.New(
+		context.Background(),
+		otlptracehttp.NewClient(
+			otlptracehttp.WithEndpoint("localhost:4318"),
+			otlptracehttp.WithHeaders(headers),
+			otlptracehttp.WithInsecure(),
+		),
+	)
+	if err != nil {
+		log.Fatalf("failed to create OTLP trace exporter: %v", err)
+	}
+
+	tracerprovider := trace.NewTracerProvider(
+		trace.WithBatcher(
+			exporter,
+			trace.WithMaxExportBatchSize(trace.DefaultMaxExportBatchSize),
+			trace.WithBatchTimeout(trace.DefaultScheduleDelay*time.Millisecond),
+			trace.WithMaxExportBatchSize(trace.DefaultMaxExportBatchSize),
+		),
+		trace.WithResource(
+			resource.NewWithAttributes(
+				semconv.SchemaURL,
+				semconv.ServiceNameKey.String("go-serv"),
+			),
+		),
+	)
+
+	otel.SetTracerProvider(tracerprovider)
 }
 
 // initPostgres initializes the PostgreSQL database

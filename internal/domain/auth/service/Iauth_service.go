@@ -12,4 +12,6 @@ type AuthService interface {
 	Login(ctx context.Context, email, password string) (string, error)
 	GetUserByID(ctx context.Context, userID uuid.UUID) (*models.User, error)
 	Logout(ctx context.Context, userID uuid.UUID) error
+	DeleteUser(ctx context.Context, userID uuid.UUID) error
+	UpdateUserProfile(ctx context.Context, userID uuid.UUID, updates models.User) (*models.User, error)
 }

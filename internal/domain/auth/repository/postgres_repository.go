@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"github.com/dk5761/go-serv/internal/domain/auth/models"
@@ -9,7 +10,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v4"
 	"github.com/jackc/pgx/v4/pgxpool"
-
 )
 
 type postgresUserRepository struct {
@@ -73,6 +73,7 @@ func (r *postgresUserRepository) UpdateLastLogin(ctx context.Context, userID uui
 	}
 	return nil
 }
+
 // GetUserByID retrieves a user by ID, including the updated timestamp fields
 func (r *postgresUserRepository) GetUserByID(ctx context.Context, userID uuid.UUID) (*models.User, error) {
 	query := `
@@ -107,5 +108,33 @@ func (r *postgresUserRepository) UpdateUserTimestamps(ctx context.Context, userI
 	if cmdTag.RowsAffected() == 0 {
 		return common.ErrNotFound // No user with this ID
 	}
+	return nil
+}
+
+func (r *postgresUserRepository) UpdateUser(ctx context.Context, user *models.User) error {
+	query := `
+        UPDATE users
+        SET email = $1, updated_at = $2
+        WHERE id = $3
+    `
+
+	_, err := r.db.Exec(ctx, query, user.Email, time.Now(), user.ID)
+	return err
+}
+
+// DeleteUser deletes a user from the database by their user ID.
+func (r *postgresUserRepository) DeleteUser(ctx context.Context, userID uuid.UUID) error {
+	query := `DELETE FROM users WHERE id = $1`
+
+	cmdTag, err := r.db.Exec(ctx, query, userID)
+	if err != nil {
+		return err
+	}
+
+	// Check if any rows were actually deleted; if none, return an error indicating user not found
+	if cmdTag.RowsAffected() == 0 {
+		return errors.New("user not found")
+	}
+
 	return nil
 }
