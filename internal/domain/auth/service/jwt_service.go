@@ -5,11 +5,11 @@ import (
 
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
-
 )
 
+// JWTService defines methods to generate and validate tokens.
 type JWTService interface {
-	GenerateToken(userID uuid.UUID, tokenVersion int) (string, error)
+	GenerateToken(userID uuid.UUID, tokenTimeStamp time.Time) (string, error)
 	ValidateToken(tokenString string) (*CustomClaims, error)
 }
 
@@ -18,6 +18,7 @@ type jwtService struct {
 	tokenDuration time.Duration
 }
 
+// NewJWTService initializes a new JWTService with the given secret key and token duration.
 func NewJWTService(secretKey string, tokenDurationMinutes int) JWTService {
 	return &jwtService{
 		secretKey:     secretKey,
@@ -25,16 +26,18 @@ func NewJWTService(secretKey string, tokenDurationMinutes int) JWTService {
 	}
 }
 
+// CustomClaims defines the custom JWT claims structure.
 type CustomClaims struct {
-	UserID       uuid.UUID `json:"user_id"`
-	TokenVersion int       `json:"token_version"`
+	UserID  uuid.UUID `json:"user_id"`
+	TokenTS int64     `json:"token_ts"` // Use int64 for Unix timestamp
 	jwt.RegisteredClaims
 }
 
-func (s *jwtService) GenerateToken(userID uuid.UUID, tokenVersion int) (string, error) {
+// GenerateToken creates a JWT with user ID and token timestamp.
+func (s *jwtService) GenerateToken(userID uuid.UUID, tokenTimeStamp time.Time) (string, error) {
 	claims := &CustomClaims{
-		UserID:       userID,
-		TokenVersion: tokenVersion,
+		UserID:  userID,
+		TokenTS: tokenTimeStamp.Unix(), // Set the token timestamp as Unix time
 		RegisteredClaims: jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(time.Now().Add(s.tokenDuration)),
 			IssuedAt:  jwt.NewNumericDate(time.Now()),
@@ -51,6 +54,7 @@ func (s *jwtService) GenerateToken(userID uuid.UUID, tokenVersion int) (string, 
 	return tokenString, nil
 }
 
+// ValidateToken parses and validates a JWT, returning the custom claims.
 func (s *jwtService) ValidateToken(tokenString string) (*CustomClaims, error) {
 	token, err := jwt.ParseWithClaims(tokenString, &CustomClaims{}, func(token *jwt.Token) (interface{}, error) {
 		return []byte(s.secretKey), nil

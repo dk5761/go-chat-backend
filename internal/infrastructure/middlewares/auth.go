@@ -19,7 +19,10 @@ func JWTAuthMiddleware(jwtService authService.JWTService, userRepo authRepo.User
 			return
 		}
 
+		// Remove "Bearer " prefix from auth header
 		tokenString := strings.TrimPrefix(authHeader, "Bearer ")
+
+		// Validate the token and extract claims
 		claims, err := jwtService.ValidateToken(tokenString)
 		if err != nil {
 			logging.Logger.Error("Invalid token", zap.Error(err))
@@ -27,17 +30,20 @@ func JWTAuthMiddleware(jwtService authService.JWTService, userRepo authRepo.User
 			return
 		}
 
-		// Check token version
+		// Retrieve user from repository
 		user, err := userRepo.GetUserByID(c.Request.Context(), claims.UserID)
 		if err != nil {
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "User not found"})
 			return
 		}
-		if claims.TokenVersion != user.TokenVersion {
+
+		// Check if token's timestamp matches user's LastLoginToken
+		if claims.TokenTS != user.LastLoginToken.Unix() {
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Token has been invalidated"})
 			return
 		}
 
+		// Token is valid, set the user ID in context for further processing
 		c.Set("userID", claims.UserID)
 		c.Next()
 	}

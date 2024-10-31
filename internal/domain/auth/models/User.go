@@ -7,9 +7,11 @@ import (
 )
 
 type User struct {
-	ID           uuid.UUID `json:"id"`
-	Email        string    `json:"email"`
-	PasswordHash string    `json:"-"`
-	TokenVersion int       `json:"-"`
-	LastLogin    time.Time `json:"last_login"`
+	ID             uuid.UUID `json:"id"`
+	Email          string    `json:"email"`
+	PasswordHash   string    `json:"-"`
+	CreatedAt      time.Time `json:"created_at"`
+	UpdatedAt      time.Time `json:"updated_at"`
+	LastLogin      time.Time `json:"last_login"`
+	LastLoginToken time.Time `json:"-"` // Used to validate token timestamps
 }

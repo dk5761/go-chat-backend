@@ -38,7 +38,7 @@ func main() {
 	storageService := initStorage(config)
 
 	// Set up Dependency Container
-	cont := container.NewContainer(db, config)
+	cont := container.NewContainer(db, mongoDB, cacheClient, storageService, config)
 
 	// Set up Gin router
 	router := setupRouter()
@@ -86,6 +86,8 @@ func initMongoDB(config *configs.Config) *mongo.Database {
 
 // initStorage initializes the storage service based on the provider
 func initStorage(config *configs.Config) storage.StorageService {
+	logging.Logger.Info("Initializing storage with provider", zap.String("provider", config.Storage.Provider))
+
 	var storageService storage.StorageService
 	var err error
 
@@ -98,7 +100,7 @@ func initStorage(config *configs.Config) storage.StorageService {
 			logging.Logger.Fatal("Failed to initialize Google Drive storage", zap.Error(err))
 		}
 	default:
-		logging.Logger.Fatal("Invalid storage provider specified")
+		logging.Logger.Fatal("Invalid storage provider specified", zap.String("provider", config.Storage.Provider))
 	}
 
 	return storageService

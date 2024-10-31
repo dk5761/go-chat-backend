@@ -3,6 +3,7 @@ package handler
 import (
 	"net/http"
 
+	"github.com/dk5761/go-serv/internal/domain/auth/dto"
 	"github.com/dk5761/go-serv/internal/domain/auth/repository"
 	"github.com/dk5761/go-serv/internal/domain/auth/service"
 	"github.com/gin-gonic/gin"
@@ -11,8 +12,8 @@ import (
 
 type AuthHandler struct {
 	AuthService service.AuthService
-	JwtService  service.JWTService        // Changed to uppercase
-	UserRepo    repository.UserRepository // Changed to uppercase
+	JwtService  service.JWTService
+	UserRepo    repository.UserRepository
 }
 
 func NewAuthHandler(authService service.AuthService, jwtService service.JWTService, userRepo repository.UserRepository) *AuthHandler {
@@ -25,19 +26,13 @@ func NewAuthHandler(authService service.AuthService, jwtService service.JWTServi
 
 // SignUp handles user registration requests.
 func (h *AuthHandler) SignUp(c *gin.Context) {
-	// Define a struct to bind the JSON request body
-	var req struct {
-		Email    string `json:"email" binding:"required,email"`
-		Password string `json:"password" binding:"required,min=6"`
-	}
+	var req dto.SignUpRequest
 
-	// Bind the JSON request to the struct
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request parameters"})
 		return
 	}
 
-	// Call the AuthService to register the user
 	err := h.AuthService.SignUp(c.Request.Context(), req.Email, req.Password)
 	if err != nil {
 		if err.Error() == "user already exists" {
@@ -48,38 +43,29 @@ func (h *AuthHandler) SignUp(c *gin.Context) {
 		return
 	}
 
-	// Respond with success
 	c.JSON(http.StatusCreated, gin.H{"message": "User registered successfully"})
 }
 
 // Login handles user authentication requests.
 func (h *AuthHandler) Login(c *gin.Context) {
-	// Define a struct to bind the JSON request body
-	var req struct {
-		Email    string `json:"email" binding:"required,email"`
-		Password string `json:"password" binding:"required"`
-	}
+	var req dto.LoginRequest
 
-	// Bind the JSON request to the struct
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request parameters"})
 		return
 	}
 
-	// Call the AuthService to authenticate the user
 	token, err := h.AuthService.Login(c.Request.Context(), req.Email, req.Password)
 	if err != nil {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid email or password"})
 		return
 	}
 
-	// Respond with the JWT token
-	c.JSON(http.StatusOK, gin.H{"token": token})
+	c.JSON(http.StatusOK, dto.AuthResponse{Token: token})
 }
 
 // Profile retrieves the authenticated user's profile.
 func (h *AuthHandler) Profile(c *gin.Context) {
-	// Get the user ID from the context (set by JWT middleware)
 	userIDValue, exists := c.Get("userID")
 	if !exists {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
@@ -92,17 +78,16 @@ func (h *AuthHandler) Profile(c *gin.Context) {
 		return
 	}
 
-	// Call the AuthService to get the user profile
 	user, err := h.AuthService.GetUserByID(c.Request.Context(), userID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve user profile"})
 		return
 	}
 
-	// Respond with the user's profile information
-	c.JSON(http.StatusOK, gin.H{
-		"id":         user.ID.String(),
-		"email":      user.Email,
-		"last_login": user.LastLogin,
+	// Use ProfileResponse DTO to send the user's profile information
+	c.JSON(http.StatusOK, dto.ProfileResponse{
+		ID:        user.ID.String(),
+		Email:     user.Email,
+		LastLogin: user.LastLogin,
 	})
 }

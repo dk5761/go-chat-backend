@@ -35,11 +35,13 @@ func (s *authService) SignUp(ctx context.Context, email, password string) error 
 	}
 
 	user := &models.User{
-		ID:           uuid.New(),
-		Email:        email,
-		PasswordHash: hashedPassword,
-		TokenVersion: 0,
-		LastLogin:    time.Now(),
+		ID:             uuid.New(),
+		Email:          email,
+		PasswordHash:   hashedPassword,
+		CreatedAt:      time.Now(),
+		UpdatedAt:      time.Now(),
+		LastLogin:      time.Now(),
+		LastLoginToken: time.Now(),
 	}
 
 	return s.userRepo.CreateUser(ctx, user)
@@ -56,13 +58,13 @@ func (s *authService) Login(ctx context.Context, email, password string) (string
 	}
 
 	// Update last login time
-	err = s.userRepo.UpdateLastLogin(ctx, user.ID, time.Now())
+	err = s.userRepo.UpdateLastLogin(ctx, user.ID, time.Now(), time.Now())
 	if err != nil {
 		logging.Logger.Error("Failed to update last login", zap.Error(err))
 	}
 
 	// Generate JWT token
-	token, err := s.jwtService.GenerateToken(user.ID, user.TokenVersion)
+	token, err := s.jwtService.GenerateToken(user.ID, user.LastLoginToken)
 	if err != nil {
 		return "", err
 	}
@@ -77,11 +79,15 @@ func (s *authService) GetUserByID(ctx context.Context, userID uuid.UUID) (*model
 }
 
 func (s *authService) Logout(ctx context.Context, userID uuid.UUID) error {
-	// Increment the token version to invalidate existing tokens
+	// Retrieve the user to confirm existence
 	user, err := s.userRepo.GetUserByID(ctx, userID)
 	if err != nil {
 		return err
 	}
-	newTokenVersion := user.TokenVersion + 1
-	return s.userRepo.UpdateTokenVersion(ctx, userID, newTokenVersion)
+
+	// Set a new timestamp for LastLoginToken to invalidate existing tokens
+	newTokenTimestamp := time.Now()
+
+	// Update the user's LastLoginToken to the new timestamp
+	return s.userRepo.UpdateLastLogin(ctx, userID, user.LastLogin, newTokenTimestamp)
 }
