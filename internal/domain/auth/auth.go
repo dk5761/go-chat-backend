@@ -14,7 +14,7 @@ func NewAuthHandler(db *pgxpool.Pool, config *configs.Config) *handler.AuthHandl
 	userRepo := repository.NewPostgresUserRepository(db)
 
 	// Initialize JWT service with configurations from config
-	jwtService := service.NewJWTService(config.JWT.SecretKey, config.JWT.TokenDuration)
+	jwtService := service.NewJWTService(config.JWT.SecretKey, config.JWT.TokenDuration, config.JWT.TokenDuration, config.JWT.SecretKey)
 
 	// Initialize auth service with the repository and JWT service
 	authService := service.NewAuthService(userRepo, jwtService)

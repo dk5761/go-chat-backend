@@ -40,7 +40,8 @@ type RedisConfig struct {
 }
 
 type JWTConfig struct {
-	SecretKey     string
+	SecretKey string
+
 	TokenDuration int // in minutes
 }
 
