@@ -1,30 +1,32 @@
 package handler
 
 import (
+	"encoding/json"
+	"fmt"
 	"net/http"
 
 	"github.com/dk5761/go-serv/internal/domain/chat/models"
 	"github.com/dk5761/go-serv/internal/domain/chat/service"
-	"github.com/dk5761/go-serv/internal/infrastructure/logging"
+	ws "github.com/dk5761/go-serv/internal/domain/chat/websocket"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
-	"go.uber.org/zap"
 )
 
 type ChatHandler struct {
 	chatService service.ChatService
+	wsManager   *ws.WebSocketManager
 }
 
-func NewChatHandler(chatService service.ChatService) *ChatHandler {
-	return &ChatHandler{chatService}
+func NewChatHandler(chatService service.ChatService, wsManager *ws.WebSocketManager) *ChatHandler {
+	return &ChatHandler{chatService, wsManager}
 }
 
 var upgrader = websocket.Upgrader{
 	CheckOrigin: func(r *http.Request) bool { return true },
 }
 
-// Handler for uploading files
+// UploadFile handles file uploads through the ChatService
 func (h *ChatHandler) UploadFile(c *gin.Context) {
 	file, header, err := c.Request.FormFile("file")
 	if err != nil {
@@ -46,17 +48,48 @@ func (h *ChatHandler) UploadFile(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"file_url": fileURL})
 }
 
+// HandleWebSocket manages WebSocket connections for real-time chat
 func (h *ChatHandler) HandleWebSocket(c *gin.Context) {
-	wsConn, err := upgrader.Upgrade(c.Writer, c.Request, nil)
+	conn, err := upgrader.Upgrade(c.Writer, c.Request, nil)
 	if err != nil {
-		logging.Logger.Error("Failed to upgrade to WebSocket", zap.Error(err))
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to upgrade WebSocket"})
 		return
 	}
-	defer wsConn.Close()
 
-	// Handle WebSocket communication here
+	userID := c.Query("userID")
+	client := &models.Client{ID: userID, Conn: conn, SendCh: make(chan *models.Message)}
+	h.wsManager.AddClient(client)
+
+	go func() {
+		defer conn.Close()
+		for {
+			_, msgData, err := conn.ReadMessage()
+			if err != nil {
+				h.wsManager.RemoveClient(userID)
+				break
+			}
+
+			var message models.Message
+			if err := json.Unmarshal(msgData, &message); err != nil {
+				continue
+			}
+
+			// Set the sender ID and call SendMessage
+			message.SenderID = userID
+			if err := h.chatService.SendMessage(c.Request.Context(), &message, nil, ""); err != nil {
+				continue
+			}
+
+			// Send message to the receiver
+			if err := h.chatService.SendToClient(message.ReceiverID, &message); err != nil {
+				// If the receiver is not connected, handle if needed
+				continue
+			}
+		}
+	}()
 }
 
+// SendMessage handles sending messages with optional file support
 func (h *ChatHandler) SendMessage(c *gin.Context) {
 	var msg models.Message
 	if err := c.BindJSON(&msg); err != nil {
@@ -64,7 +97,7 @@ func (h *ChatHandler) SendMessage(c *gin.Context) {
 		return
 	}
 
-	// Get the sender ID from context (set by JWT middleware)
+	// Get the sender ID from the context (set by JWT middleware)
 	userIDValue, exists := c.Get("userID")
 	if !exists {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
@@ -77,8 +110,8 @@ func (h *ChatHandler) SendMessage(c *gin.Context) {
 	}
 	msg.SenderID = senderID.String()
 
-	// Call the service to send the message
-	if err := h.chatService.SendMessage(c.Request.Context(), &msg); err != nil {
+	// Call the service to send the message (without file)
+	if err := h.chatService.SendMessage(c.Request.Context(), &msg, nil, ""); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to send message"})
 		return
 	}
@@ -86,8 +119,8 @@ func (h *ChatHandler) SendMessage(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"status": "message sent"})
 }
 
+// GetChatHistory retrieves chat history between two users with pagination support
 func (h *ChatHandler) GetChatHistory(c *gin.Context) {
-	// Extract user IDs from query parameters or request context
 	userIDValue, exists := c.Get("userID")
 	if !exists {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
@@ -110,8 +143,17 @@ func (h *ChatHandler) GetChatHistory(c *gin.Context) {
 		return
 	}
 
+	// Pagination parameters
+	limit, offset := 20, 0
+	if l := c.Query("limit"); l != "" {
+		fmt.Sscanf(l, "%d", &limit)
+	}
+	if o := c.Query("offset"); o != "" {
+		fmt.Sscanf(o, "%d", &offset)
+	}
+
 	// Get chat history from the service
-	messages, err := h.chatService.GetChatHistory(c.Request.Context(), userID1, userID2)
+	messages, err := h.chatService.GetChatHistory(c.Request.Context(), userID1, userID2, limit, offset)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve chat history"})
 		return

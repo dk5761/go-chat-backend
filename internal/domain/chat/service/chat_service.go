@@ -4,9 +4,11 @@ import (
 	"context"
 	"errors"
 	"mime/multipart"
+	"time"
 
 	"github.com/dk5761/go-serv/internal/domain/chat/models"
 	"github.com/dk5761/go-serv/internal/domain/chat/repository"
+	"github.com/dk5761/go-serv/internal/domain/chat/websocket"
 	"github.com/dk5761/go-serv/internal/infrastructure/storage"
 	"github.com/google/uuid"
 )
@@ -14,29 +16,47 @@ import (
 type chatService struct {
 	msgRepo        repository.MessageRepository
 	storageService storage.StorageService
+	wsManager      *websocket.WebSocketManager
 }
 
-func NewChatService(msgRepo repository.MessageRepository, storageService storage.StorageService) ChatService {
-	return &chatService{msgRepo, storageService}
+func NewChatService(msgRepo repository.MessageRepository, storageService storage.StorageService, wsManager *websocket.WebSocketManager) ChatService {
+	return &chatService{msgRepo: msgRepo, storageService: storageService, wsManager: wsManager}
 }
 
-// Implement the ChatService methods here
-
+// UploadFile uploads a file and returns its URL.
 func (s *chatService) UploadFile(ctx context.Context, file multipart.File, fileName string) (string, error) {
 	return s.storageService.UploadFile(ctx, file, fileName)
 }
 
-func (s *chatService) SendMessage(ctx context.Context, msg *models.Message) error {
-	// Validate the message content
-	if msg.Content == "" {
-		return errors.New("message content cannot be empty")
+// SendMessage validates and saves a message to the repository.
+// If a file is attached, it uploads the file and saves the URL in the message.
+func (s *chatService) SendMessage(ctx context.Context, msg *models.Message, file multipart.File, fileName string) error {
+	// Set message ID and timestamp
+	msg.Timestamp = time.Now()
+
+	// Handle optional file upload
+	if file != nil {
+		fileURL, err := s.storageService.UploadFile(ctx, file, fileName)
+		if err != nil {
+			return errors.New("failed to upload file")
+		}
+		msg.FileURL = fileURL
 	}
 
-	// Save the message using the repository
+	// Save the message in the repository
 	return s.msgRepo.SaveMessage(ctx, msg)
 }
 
-func (s *chatService) GetChatHistory(ctx context.Context, userID1, userID2 uuid.UUID) ([]*models.Message, error) {
-	// Retrieve messages from the repository
-	return s.msgRepo.GetMessages(ctx, userID1, userID2)
+func (s *chatService) SendToClient(receiverID string, msg *models.Message) error {
+	return s.wsManager.SendToClient(receiverID, msg)
+}
+
+// GetChatHistory retrieves messages between two users, supporting pagination for large histories.
+func (s *chatService) GetChatHistory(ctx context.Context, userID1, userID2 uuid.UUID, limit, offset int) ([]*models.Message, error) {
+	if limit <= 0 {
+		limit = 20 // Default limit
+	}
+
+	// Retrieve messages from the repository with pagination
+	return s.msgRepo.GetMessages(ctx, userID1, userID2, limit, offset)
 }

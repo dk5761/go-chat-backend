@@ -9,5 +9,5 @@ import (
 
 type MessageRepository interface {
 	SaveMessage(ctx context.Context, msg *models.Message) error
-	GetMessages(ctx context.Context, userID1, userID2 uuid.UUID) ([]*models.Message, error)
+	GetMessages(ctx context.Context, userID1, userID2 uuid.UUID, limit, offset int) ([]*models.Message, error)
 }

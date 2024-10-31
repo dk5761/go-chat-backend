@@ -4,7 +4,6 @@ import (
 	"time"
 
 	"go.mongodb.org/mongo-driver/bson/primitive"
-
 )
 
 type Message struct {
@@ -13,4 +12,6 @@ type Message struct {
 	ReceiverID string             `bson:"receiver_id" json:"receiver_id"`
 	Content    string             `bson:"content" json:"content"`
 	CreatedAt  time.Time          `bson:"created_at" json:"created_at"`
+	FileURL    string             `bson:"file_url,omitempty" json:"file_url"`
+	Timestamp  time.Time          `bson:"timestamp" json:"timestamp"`
 }

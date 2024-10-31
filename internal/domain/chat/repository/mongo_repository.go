@@ -15,28 +15,26 @@ type mongoMessageRepository struct {
 	collection *mongo.Collection
 }
 
+// NewMongoMessageRepository initializes a new instance of mongoMessageRepository
 func NewMongoMessageRepository(db *mongo.Database) MessageRepository {
 	return &mongoMessageRepository{
 		collection: db.Collection("messages"),
 	}
 }
 
-// SaveMessage saves a new message to the MongoDB collection.
+// SaveMessage saves a new message to the MongoDB collection
 func (r *mongoMessageRepository) SaveMessage(ctx context.Context, msg *models.Message) error {
-	// Set the creation time
-	msg.CreatedAt = time.Now()
+	// Set the creation timestamp
+	msg.Timestamp = time.Now()
 
-	// Insert the message into the collection
+	// Insert the message into MongoDB
 	_, err := r.collection.InsertOne(ctx, msg)
-	if err != nil {
-		return err
-	}
-	return nil
+	return err
 }
 
-// GetMessages retrieves messages between two users, sorted by creation time.
-func (r *mongoMessageRepository) GetMessages(ctx context.Context, userID1, userID2 uuid.UUID) ([]*models.Message, error) {
-	// Create a filter to get messages where sender and receiver match
+// GetMessages retrieves messages between two users, sorted by creation time with pagination support
+func (r *mongoMessageRepository) GetMessages(ctx context.Context, userID1, userID2 uuid.UUID, limit, offset int) ([]*models.Message, error) {
+	// Create a filter to match messages between userID1 and userID2
 	filter := bson.M{
 		"$or": []bson.M{
 			{
@@ -50,9 +48,11 @@ func (r *mongoMessageRepository) GetMessages(ctx context.Context, userID1, userI
 		},
 	}
 
-	// Define options to sort the messages by created_at
+	// Define options to apply pagination and sorting by timestamp
 	findOptions := options.Find()
-	findOptions.SetSort(bson.D{{"created_at", 1}}) // 1 for ascending order
+	findOptions.SetSort(bson.D{{"timestamp", 1}}) // 1 for ascending order
+	findOptions.SetLimit(int64(limit))
+	findOptions.SetSkip(int64(offset))
 
 	// Execute the query
 	cursor, err := r.collection.Find(ctx, filter, findOptions)
@@ -61,7 +61,7 @@ func (r *mongoMessageRepository) GetMessages(ctx context.Context, userID1, userI
 	}
 	defer cursor.Close(ctx)
 
-	// Iterate over the cursor and decode each message
+	// Decode each document in the cursor into a Message struct
 	var messages []*models.Message
 	for cursor.Next(ctx) {
 		var msg models.Message
