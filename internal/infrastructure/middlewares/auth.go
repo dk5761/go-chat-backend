@@ -1,6 +1,7 @@
 package middlewares
 
 import (
+	"fmt"
 	"net/http"
 	"strings"
 
@@ -39,6 +40,7 @@ func JWTAuthMiddleware(jwtService authService.JWTService, userRepo authRepo.User
 
 		// Check if token's timestamp matches user's LastLoginToken
 		if claims.TokenTS != user.LastLoginToken.Unix() {
+			fmt.Println("claims : ", claims.TokenTS, user.LastLoginToken.Unix())
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Token has been invalidated"})
 			return
 		}

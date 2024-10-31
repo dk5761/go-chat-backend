@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"fmt"
 	"net/http"
 
 	"github.com/dk5761/go-serv/internal/domain/auth/dto"
@@ -83,6 +84,8 @@ func (h *AuthHandler) Profile(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve user profile"})
 		return
 	}
+
+	fmt.Print(user)
 
 	// Use ProfileResponse DTO to send the user's profile information
 	c.JSON(http.StatusOK, dto.ProfileResponse{

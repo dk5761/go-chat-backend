@@ -7,6 +7,7 @@ import (
 
 	"github.com/dk5761/go-serv/internal/domain/auth/models"
 	"github.com/dk5761/go-serv/internal/domain/auth/repository"
+	"github.com/dk5761/go-serv/internal/domain/common"
 	"github.com/dk5761/go-serv/internal/domain/common/helpers"
 	"github.com/dk5761/go-serv/internal/infrastructure/logging"
 	"github.com/google/uuid"
@@ -57,14 +58,23 @@ func (s *authService) Login(ctx context.Context, email, password string) (string
 		return "", errors.New("invalid credentials")
 	}
 
-	// Update last login time
-	err = s.userRepo.UpdateLastLogin(ctx, user.ID, time.Now(), time.Now())
+	// Update last login and last login token timestamps
+	newLoginTime := time.Now()
+	err = s.userRepo.UpdateLastLogin(ctx, user.ID, newLoginTime, newLoginTime)
 	if err != nil {
 		logging.Logger.Error("Failed to update last login", zap.Error(err))
+		return "", err // Return error since login state wasn't updated
 	}
 
-	// Generate JWT token
-	token, err := s.jwtService.GenerateToken(user.ID, user.LastLoginToken)
+	// Retrieve the updated user to get the latest LastLoginToken
+	updatedUser, err := s.userRepo.GetUserByID(ctx, user.ID)
+	if err != nil {
+		logging.Logger.Error("Failed to retrieve updated user", zap.Error(err))
+		return "", err
+	}
+
+	// Generate JWT token using the updated LastLoginToken
+	token, err := s.jwtService.GenerateToken(updatedUser.ID, updatedUser.LastLoginToken)
 	if err != nil {
 		return "", err
 	}
@@ -73,9 +83,15 @@ func (s *authService) Login(ctx context.Context, email, password string) (string
 }
 
 func (s *authService) GetUserByID(ctx context.Context, userID uuid.UUID) (*models.User, error) {
-	// Implement a method to get user by ID
-
-	return &models.User{}, nil
+	// Query the repository to get the user by ID
+	user, err := s.userRepo.GetUserByID(ctx, userID)
+	if err != nil {
+		if errors.Is(err, common.ErrNotFound) {
+			return nil, errors.New("user not found")
+		}
+		return nil, err
+	}
+	return user, nil
 }
 
 func (s *authService) Logout(ctx context.Context, userID uuid.UUID) error {

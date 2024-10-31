@@ -1,7 +1,13 @@
 package main
 
 import (
+	"context"
 	"log"
+	"net/http"
+	"os"
+	"os/signal"
+	"syscall"
+	"time"
 
 	"github.com/dk5761/go-serv/configs"
 	"github.com/dk5761/go-serv/internal/infrastructure/cache"
@@ -11,6 +17,7 @@ import (
 	"github.com/dk5761/go-serv/internal/infrastructure/storage"
 	"github.com/dk5761/go-serv/internal/infrastructure/tracing"
 	"github.com/dk5761/go-serv/internal/routes"
+	"github.com/dk5761/go-serv/migrations"
 	"github.com/gin-gonic/gin"
 	"github.com/jackc/pgx/v4/pgxpool"
 	"go.mongodb.org/mongo-driver/mongo"
@@ -47,7 +54,7 @@ func main() {
 	routes.InitRoutes(router, cont)
 
 	// Start the server
-	startServer(router, config)
+	startServerWithGracefulShutdown(router, config, db, mongoDB)
 }
 
 // initConfig loads the application configuration
@@ -80,6 +87,9 @@ func initMongoDB(config *configs.Config) *mongo.Database {
 	mongoDB, err := database.InitMongoDB(config.MongoDB)
 	if err != nil {
 		logging.Logger.Fatal("Failed to connect to MongoDB", zap.Error(err))
+	}
+	if err := migrations.RunMigrations(mongoDB); err != nil {
+		logging.Logger.Fatal("Failed to run MongoDB migrations", zap.Error(err))
 	}
 	return mongoDB
 }
@@ -114,8 +124,43 @@ func setupRouter() *gin.Engine {
 }
 
 // startServer starts the HTTP server
-func startServer(router *gin.Engine, config *configs.Config) {
-	if err := router.Run(config.Server.Address); err != nil {
-		logging.Logger.Fatal("Failed to run server", zap.Error(err))
+func startServerWithGracefulShutdown(router *gin.Engine, config *configs.Config, db *pgxpool.Pool, mongoDB *mongo.Database) {
+	// Create an http.Server with the Gin router
+	server := &http.Server{
+		Addr:    config.Server.Address,
+		Handler: router,
 	}
+
+	// Run the server in a goroutine
+	go func() {
+		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			logging.Logger.Fatal("Failed to start server", zap.Error(err))
+		}
+	}()
+	logging.Logger.Info("Server started on " + config.Server.Address)
+
+	// Listen for OS signals for graceful shutdown
+	stop := make(chan os.Signal, 1)
+	signal.Notify(stop, syscall.SIGINT, syscall.SIGTERM)
+
+	// Block until we receive a signal
+	<-stop
+	logging.Logger.Info("Shutting down server...")
+
+	// Set a timeout context for shutdown
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	// Attempt a graceful shutdown
+	if err := server.Shutdown(ctx); err != nil {
+		logging.Logger.Fatal("Server forced to shutdown", zap.Error(err))
+	}
+
+	// Close database connections
+	db.Close()
+	if err := mongoDB.Client().Disconnect(ctx); err != nil {
+		logging.Logger.Fatal("Failed to disconnect MongoDB client", zap.Error(err))
+	}
+
+	logging.Logger.Info("Server shutdown complete.")
 }

@@ -9,6 +9,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v4"
 	"github.com/jackc/pgx/v4/pgxpool"
+
 )
 
 type postgresUserRepository struct {
@@ -21,6 +22,10 @@ func NewPostgresUserRepository(db *pgxpool.Pool) UserRepository {
 
 // CreateUser inserts a new user with created, updated, and last login token timestamps
 func (r *postgresUserRepository) CreateUser(ctx context.Context, user *models.User) error {
+	// Initialize LastLogin to current time for new users
+	user.LastLogin = time.Now()
+	user.LastLoginToken = time.Now()
+
 	query := `
         INSERT INTO users (id, email, password_hash, created_at, updated_at, last_login, last_login_token)
         VALUES ($1, $2, $3, $4, $5, $6, $7)
@@ -53,7 +58,7 @@ func (r *postgresUserRepository) GetUserByEmail(ctx context.Context, email strin
 }
 
 // UpdateLastLogin updates the last login time and last login token for the user
-func (r *postgresUserRepository) UpdateLastLogin(ctx context.Context, userID uuid.UUID, lastLogin time.Time, lastLoginToken time.Time) error {
+func (r *postgresUserRepository) UpdateLastLogin(ctx context.Context, userID uuid.UUID, lastLogin, lastLoginToken time.Time) error {
 	query := `
         UPDATE users
         SET last_login = $1, last_login_token = $2, updated_at = $3
@@ -68,7 +73,6 @@ func (r *postgresUserRepository) UpdateLastLogin(ctx context.Context, userID uui
 	}
 	return nil
 }
-
 // GetUserByID retrieves a user by ID, including the updated timestamp fields
 func (r *postgresUserRepository) GetUserByID(ctx context.Context, userID uuid.UUID) (*models.User, error) {
 	query := `
