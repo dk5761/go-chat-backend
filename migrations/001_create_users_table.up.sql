@@ -9,5 +9,8 @@ CREATE TABLE IF NOT EXISTS users (
     last_login_token TIMESTAMP
 );
 
+
+
+
 -- Add index on email to optimize lookups by email
 CREATE INDEX IF NOT EXISTS idx_users_email ON users (email);

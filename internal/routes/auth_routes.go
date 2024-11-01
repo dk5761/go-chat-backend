@@ -18,5 +18,7 @@ func RegisterAuthRoutes(router *gin.Engine, container *container.Container) {
 
 	{
 		protected.GET("/profile", container.AuthHandler.Profile)
+		protected.GET("/find", container.AuthHandler.GetUsers)
+
 	}
 }

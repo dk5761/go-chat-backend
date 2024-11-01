@@ -15,6 +15,7 @@ type UserRepository interface {
 
 	// GetUserByEmail retrieves a user by their email address.
 	GetUserByEmail(ctx context.Context, email string) (*models.User, error)
+	GetUserByUsername(ctx context.Context, username string) (*models.User, error)
 
 	// GetUserByID retrieves a user by their unique ID.
 	GetUserByID(ctx context.Context, userID uuid.UUID) (*models.User, error)
@@ -27,4 +28,5 @@ type UserRepository interface {
 
 	UpdateUser(ctx context.Context, user *models.User) error
 	DeleteUser(ctx context.Context, userID uuid.UUID) error
+	GetUsers(ctx context.Context, q string, limit, offset int) ([]*models.User, error)
 }
