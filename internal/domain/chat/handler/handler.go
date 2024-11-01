@@ -1,10 +1,7 @@
 package handler
 
 import (
-	"context"
-	"encoding/json"
 	"fmt"
-	"log"
 	"net/http"
 
 	"github.com/dk5761/go-serv/internal/domain/chat/models"
@@ -51,6 +48,56 @@ func (h *ChatHandler) UploadFile(c *gin.Context) {
 }
 
 // HandleWebSocket manages WebSocket connections for real-time chat
+//func (h *ChatHandler) HandleWebSocket(c *gin.Context) {
+//	conn, err := upgrader.Upgrade(c.Writer, c.Request, nil)
+//	if err != nil {
+//		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to upgrade WebSocket"})
+//		return
+//	}
+//
+//	userID := c.Query("userID")
+//	client := &models.Client{ID: userID, Conn: conn, SendCh: make(chan *models.Message)}
+//	h.wsManager.AddClient(client)
+//
+//	go func() {
+//		defer func(conn *websocket.Conn) {
+//			err := conn.Close()
+//			if err != nil {
+//				log.Fatal("Error while closing websocket connection", err)
+//			}
+//		}(conn)
+//		for {
+//			_, msgData, err := conn.ReadMessage()
+//			if err != nil {
+//				h.wsManager.RemoveClient(userID)
+//				break
+//			}
+//
+//			var message models.Message
+//			if err := json.Unmarshal(msgData, &message); err != nil {
+//				continue
+//			}
+//
+//			// Set the sender ID and call SendMessage
+//			message.SenderID = userID
+//			if err := h.chatService.SendMessage(context.Background(), &message, nil, ""); err != nil {
+//				continue
+//			}
+//
+//			fmt.Println("message.1")
+//
+//			// Send message to the receiver
+//			if err := h.chatService.SendToClient(message.ReceiverID, &message); err != nil {
+//				// If the receiver is not connected, handle if needed
+//				continue
+//			}
+//
+//			fmt.Println("message.2")
+//
+//		}
+//	}()
+//}
+
 func (h *ChatHandler) HandleWebSocket(c *gin.Context) {
 	conn, err := upgrader.Upgrade(c.Writer, c.Request, nil)
 	if err != nil {
@@ -58,47 +105,15 @@ func (h *ChatHandler) HandleWebSocket(c *gin.Context) {
 		return
 	}
 
+	fmt.Println("inside HandleWebSocket")
+
 	userID := c.Query("userID")
-	client := &models.Client{ID: userID, Conn: conn, SendCh: make(chan *models.Message)}
+	client := &models.Client{
+		ID:     userID,
+		Conn:   conn,
+		SendCh: make(chan *models.Message, 10),
+	}
 	h.wsManager.AddClient(client)
-
-	go func() {
-		defer func(conn *websocket.Conn) {
-			err := conn.Close()
-			if err != nil {
-				log.Fatal("Error while closing websocket connection", err)
-			}
-		}(conn)
-		for {
-			_, msgData, err := conn.ReadMessage()
-			if err != nil {
-				h.wsManager.RemoveClient(userID)
-				break
-			}
-
-			var message models.Message
-			if err := json.Unmarshal(msgData, &message); err != nil {
-				continue
-			}
-
-			// Set the sender ID and call SendMessage
-			message.SenderID = userID
-			if err := h.chatService.SendMessage(context.Background(), &message, nil, ""); err != nil {
-				continue
-			}
-
-			fmt.Println("message.1")
-
-			// Send message to the receiver
-			if err := h.chatService.SendToClient(message.ReceiverID, &message); err != nil {
-				// If the receiver is not connected, handle if needed
-				continue
-			}
-
-			fmt.Println("message.2")
-
-		}
-	}()
 }
 
 // SendMessage handles sending messages with optional file support

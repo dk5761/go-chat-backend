@@ -1,9 +1,8 @@
 package models
 
 import (
-	"log"
-
 	"github.com/gorilla/websocket"
+	"log"
 )
 
 type Client struct {
@@ -21,5 +20,8 @@ func (c *Client) Listen() {
 		}
 	}
 	// Close the connection when the client is done listening
-	c.Conn.Close()
+	err := c.Conn.Close()
+	if err != nil {
+		return
+	}
 }

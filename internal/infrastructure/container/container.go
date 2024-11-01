@@ -6,6 +6,7 @@ import (
 	authHandler "github.com/dk5761/go-serv/internal/domain/auth/handler"
 	"github.com/dk5761/go-serv/internal/domain/chat"
 	chatHandler "github.com/dk5761/go-serv/internal/domain/chat/handler"
+	"github.com/dk5761/go-serv/internal/domain/chat/repository"
 	"github.com/dk5761/go-serv/internal/domain/chat/websocket"
 	"github.com/dk5761/go-serv/internal/infrastructure/storage"
 	"github.com/go-redis/redis/v8"
@@ -25,14 +26,16 @@ func NewContainer(
 	storageService storage.StorageService,
 	config *configs.Config,
 ) *Container {
-	// Initialize Repositories
-	authHandler := auth.NewAuthHandler(db, config)
 
-	wsManager := websocket.NewWebSocketManager()
-	chatHandler := chat.NewChatHandler(mongoDB, config, wsManager)
+	chatRepo := repository.NewMongoMessageRepository(mongoDB)
+	wsManager := websocket.NewWebSocketManager(chatRepo)
+
+	// Initialize Repositories
+	authHandlerInit := auth.NewAuthHandler(db, config)
+	chatHandlerInit := chat.NewChatHandler(mongoDB, config, wsManager)
 
 	return &Container{
-		AuthHandler: authHandler,
-		ChatHandler: chatHandler,
+		AuthHandler: authHandlerInit,
+		ChatHandler: chatHandlerInit,
 	}
 }
