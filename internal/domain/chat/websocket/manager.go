@@ -4,7 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
+	"github.com/dk5761/go-serv/internal/infrastructure/logging"
+	"go.uber.org/zap"
 	"log"
 	"sync"
 
@@ -27,11 +28,11 @@ func NewWebSocketManager(msgRepo repository.MessageRepository) *WebSocketManager
 
 // AddClient adds a new client to the manager
 func (m *WebSocketManager) AddClient(client *models.Client) {
+
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.clients[client.ID] = client
 	go client.Listen()
-	fmt.Println("inside ListenToClient")
 
 	go m.listenToClient(client)
 }
@@ -53,8 +54,6 @@ func (m *WebSocketManager) SendToClient(receiverID string, message *models.Messa
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
-	fmt.Println("inside SendToClient")
-
 	client, exists := m.clients[receiverID]
 	if !exists {
 		return errors.New("receiver not connected")
@@ -65,25 +64,77 @@ func (m *WebSocketManager) SendToClient(receiverID string, message *models.Messa
 }
 
 func (m *WebSocketManager) listenToClient(client *models.Client) {
-	defer m.RemoveClient(client.ID)
-
-	fmt.Println("inside ListenToClient")
+	defer func() {
+		m.RemoveClient(client.ID)
+		_ = client.Conn.Close() // Ensure the connection is closed when done
+	}()
 
 	for {
+		// Read incoming message from the WebSocket connection
 		_, msgData, err := client.Conn.ReadMessage()
 		if err != nil {
-			log.Printf("Error reading message for client %s: %v\n", client.ID, err)
+			logging.Logger.Error("Error reading message", zap.String("client_id", client.ID),
+				zap.Error(err))
 			break
 		}
 
+		// Unmarshal the message to determine the event type
 		var message models.Message
 		if err := json.Unmarshal(msgData, &message); err != nil {
-			log.Println("Failed to unmarshal message:", err)
+			logging.Logger.Error("Failed to unmarshal message",
+				zap.String("client_id", client.ID),
+				zap.Error(err),
+			)
 			continue
 		}
 
-		if err := m.processMessage(client, &message); err != nil {
-			log.Printf("Error processing message from client %s: %v\n", client.ID, err)
+		// Process the message based on its EventType
+		switch message.EventType {
+		case "send_message":
+			// Standard message event
+			message.SenderID = client.ID
+			message.EventType = "receive_message"
+			if err := m.processMessage(client, &message); err != nil {
+				logging.Logger.Error("Error processing send_message event",
+					zap.String("client_id", client.ID),
+					zap.Error(err),
+				)
+			}
+
+		case "typing":
+			// Notify the receiver that the sender is typing
+			if err := m.notifyTypingEvent(message.ReceiverID, &message); err != nil {
+				logging.Logger.Error("Error processing typing event",
+					zap.String("client_id", client.ID),
+					zap.Error(err),
+				)
+			}
+
+		case "join":
+			// Handle user joining the chat
+			if err := m.handleUserJoin(client); err != nil {
+				logging.Logger.Error("Error handling join event",
+					zap.String("client_id", client.ID),
+					zap.Error(err),
+				)
+			}
+
+		case "leave":
+			// Handle user leaving the chat
+			if err := m.handleUserLeave(client); err != nil {
+
+				logging.Logger.Error("Error handling leave event",
+					zap.String("client_id", client.ID),
+					zap.Error(err),
+				)
+			}
+			return // Exit the loop if the client leaves
+
+		default:
+			logging.Logger.Error("Unhandled event type",
+				zap.String("client_id", client.ID),
+				zap.String("event_type", message.EventType),
+			)
 		}
 	}
 }
@@ -93,17 +144,52 @@ func (m *WebSocketManager) processMessage(client *models.Client, message *models
 
 	message.SenderID = client.ID
 
-	fmt.Println("inside ProcessMessage")
-
 	// Save message to the database
-	if err := m.msgRepo.SaveMessage(context.Background(), message); err != nil {
+	id, err := m.msgRepo.SaveMessage(context.Background(), message)
+	if err != nil {
 		log.Printf("Failed to save message from client %s: %v\n", client.ID, err)
 		return err
 	}
 	// You can add logic to handle different message types here
 	// Example: Sending message to another client by ID
+
+	message.ID = id
 	if message.ReceiverID != "" {
 		return m.SendToClient(message.ReceiverID, message)
 	}
+	return nil
+}
+
+func (m *WebSocketManager) notifyTypingEvent(receiverID string, msg *models.Message) error {
+	m.mu.Lock()
+	receiver, exists := m.clients[receiverID]
+	m.mu.Unlock()
+
+	if !exists {
+		logging.Logger.Error("client not connected", zap.String("receiver_id", receiverID))
+		return nil
+	}
+
+	select {
+	case receiver.SendCh <- msg:
+		return nil
+	default:
+		logging.Logger.Error("SendCh is full", zap.String("client ID", receiverID))
+		return nil
+
+	}
+}
+
+// handleUserJoin performs actions when a user joins
+func (m *WebSocketManager) handleUserJoin(client *models.Client) error {
+	log.Printf("User %s has joined", client.ID)
+	// Additional join logic here
+	return nil
+}
+
+// handleUserLeave performs cleanup when a user leaves
+func (m *WebSocketManager) handleUserLeave(client *models.Client) error {
+	log.Printf("User %s has left", client.ID)
+	m.RemoveClient(client.ID)
 	return nil
 }

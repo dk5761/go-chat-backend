@@ -2,6 +2,7 @@ package middlewares
 
 import (
 	"fmt"
+	"github.com/gorilla/websocket"
 	"net/http"
 	"strings"
 
@@ -14,6 +15,11 @@ import (
 
 func JWTAuthMiddleware(jwtService authService.JWTService, userRepo authRepo.UserRepository) gin.HandlerFunc {
 	return func(c *gin.Context) {
+
+		if websocket.IsWebSocketUpgrade(c.Request) {
+			c.Next()
+			return
+		}
 
 		authHeader := c.GetHeader("Authorization")
 		if authHeader == "" {

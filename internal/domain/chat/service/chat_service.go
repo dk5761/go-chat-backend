@@ -45,7 +45,7 @@ func (s *chatService) SendMessage(ctx context.Context, msg *models.Message, file
 	}
 
 	// Save the message in the repository
-	err := s.msgRepo.SaveMessage(ctx, msg)
+	_, err := s.msgRepo.SaveMessage(ctx, msg)
 	if err != nil {
 		return err
 	}

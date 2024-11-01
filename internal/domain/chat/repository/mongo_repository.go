@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"fmt"
+	"go.mongodb.org/mongo-driver/bson/primitive"
 	"time"
 
 	"github.com/dk5761/go-serv/internal/domain/chat/models"
@@ -24,16 +25,26 @@ func NewMongoMessageRepository(db *mongo.Database) MessageRepository {
 }
 
 // SaveMessage saves a new message to the MongoDB collection
-func (r *mongoMessageRepository) SaveMessage(ctx context.Context, msg *models.Message) error {
+func (r *mongoMessageRepository) SaveMessage(ctx context.Context, msg *models.Message) (primitive.ObjectID, error) {
 	// Set the creation timestamp
 	msg.CreatedAt = time.Now()
 
 	fmt.Println("save message", msg)
 
 	// Insert the message into MongoDB
-	_, err := r.collection.InsertOne(ctx, msg)
-	fmt.Println("save message err", err)
-	return err
+	result, err := r.collection.InsertOne(ctx, msg)
+	if err != nil {
+		fmt.Println("save message err", err)
+		return primitive.NilObjectID, err
+	}
+
+	// Extract and return the ObjectID from the InsertedID field
+	messageID, ok := result.InsertedID.(primitive.ObjectID)
+	if !ok {
+		return primitive.NilObjectID, fmt.Errorf("failed to convert inserted ID to ObjectID")
+	}
+
+	return messageID, nil
 }
 
 // GetMessages retrieves messages between two users, sorted by creation time with pagination support
