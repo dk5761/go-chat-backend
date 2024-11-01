@@ -150,10 +150,10 @@ func (s *authService) UpdateUserProfile(ctx context.Context, userID uuid.UUID, u
 	return user, nil
 }
 
-func (s *authService) GetUsers(ctx context.Context, q string) ([]*models.User, error) {
+func (s *authService) GetUsers(ctx context.Context, q string, limit, offset int) ([]*models.User, error) {
 
 	// Query the repository to get the user by username
-	user, err := s.userRepo.GetUsers(ctx, q)
+	user, err := s.userRepo.GetUsers(ctx, q, limit, offset)
 	if err != nil {
 		if errors.Is(err, common.ErrNotFound) {
 			return nil, errors.New("user not found")

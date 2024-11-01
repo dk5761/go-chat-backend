@@ -17,8 +17,8 @@ func RegisterAuthRoutes(router *gin.Engine, container *container.Container) {
 	protected.Use(middlewares.JWTAuthMiddleware(container.AuthHandler.JwtService, container.AuthHandler.UserRepo))
 
 	{
-		protected.GET("/profile", container.AuthHandler.Profile)
-		protected.GET("/find", container.AuthHandler.GetUsers)
+		protected.GET("/details", container.AuthHandler.Profile)
+		protected.GET("/users", container.AuthHandler.GetUsers)
 
 	}
 }
