@@ -14,6 +14,7 @@ import (
 
 func JWTAuthMiddleware(jwtService authService.JWTService, userRepo authRepo.UserRepository) gin.HandlerFunc {
 	return func(c *gin.Context) {
+
 		authHeader := c.GetHeader("Authorization")
 		if authHeader == "" {
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Authorization header is missing"})

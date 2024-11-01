@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/dk5761/go-serv/internal/domain/chat/models"
@@ -25,10 +26,13 @@ func NewMongoMessageRepository(db *mongo.Database) MessageRepository {
 // SaveMessage saves a new message to the MongoDB collection
 func (r *mongoMessageRepository) SaveMessage(ctx context.Context, msg *models.Message) error {
 	// Set the creation timestamp
-	msg.Timestamp = time.Now()
+	msg.CreatedAt = time.Now()
+
+	fmt.Println("save message", msg)
 
 	// Insert the message into MongoDB
 	_, err := r.collection.InsertOne(ctx, msg)
+	fmt.Println("save message err", err)
 	return err
 }
 

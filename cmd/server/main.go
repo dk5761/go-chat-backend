@@ -160,7 +160,7 @@ func initStorage(config *configs.Config) storage.StorageService {
 // setupRouter configures Gin router with middleware
 func setupRouter() *gin.Engine {
 	router := gin.New()
-	router.Use(gin.Recovery())
+	//router.Use(gin.Recovery())
 	return router
 }
 

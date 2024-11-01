@@ -2,6 +2,7 @@ package middlewares
 
 import (
 	"errors"
+	"github.com/gorilla/websocket"
 	"net/http"
 
 	"github.com/dk5761/go-serv/internal/domain/common"
@@ -11,6 +12,11 @@ import (
 // ErrorHandler is a middleware that maps custom errors to HTTP status codes.
 func ErrorHandler() gin.HandlerFunc {
 	return func(c *gin.Context) {
+		if websocket.IsWebSocketUpgrade(c.Request) {
+			c.Next()
+			return
+		}
+
 		c.Next()
 
 		if len(c.Errors) > 0 {

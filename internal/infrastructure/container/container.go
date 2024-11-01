@@ -6,6 +6,7 @@ import (
 	authHandler "github.com/dk5761/go-serv/internal/domain/auth/handler"
 	"github.com/dk5761/go-serv/internal/domain/chat"
 	chatHandler "github.com/dk5761/go-serv/internal/domain/chat/handler"
+	"github.com/dk5761/go-serv/internal/domain/chat/websocket"
 	"github.com/dk5761/go-serv/internal/infrastructure/storage"
 	"github.com/go-redis/redis/v8"
 	"github.com/jackc/pgx/v4/pgxpool"
@@ -26,7 +27,9 @@ func NewContainer(
 ) *Container {
 	// Initialize Repositories
 	authHandler := auth.NewAuthHandler(db, config)
-	chatHandler := chat.NewAuthHandler(mongoDB, config)
+
+	wsManager := websocket.NewWebSocketManager()
+	chatHandler := chat.NewChatHandler(mongoDB, config, wsManager)
 
 	return &Container{
 		AuthHandler: authHandler,

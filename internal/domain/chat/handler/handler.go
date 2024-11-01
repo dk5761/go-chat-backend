@@ -1,8 +1,10 @@
 package handler
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
+	"log"
 	"net/http"
 
 	"github.com/dk5761/go-serv/internal/domain/chat/models"
@@ -61,7 +63,12 @@ func (h *ChatHandler) HandleWebSocket(c *gin.Context) {
 	h.wsManager.AddClient(client)
 
 	go func() {
-		defer conn.Close()
+		defer func(conn *websocket.Conn) {
+			err := conn.Close()
+			if err != nil {
+				log.Fatal("Error while closing websocket connection", err)
+			}
+		}(conn)
 		for {
 			_, msgData, err := conn.ReadMessage()
 			if err != nil {
@@ -76,15 +83,20 @@ func (h *ChatHandler) HandleWebSocket(c *gin.Context) {
 
 			// Set the sender ID and call SendMessage
 			message.SenderID = userID
-			if err := h.chatService.SendMessage(c.Request.Context(), &message, nil, ""); err != nil {
+			if err := h.chatService.SendMessage(context.Background(), &message, nil, ""); err != nil {
 				continue
 			}
+
+			fmt.Println("message.1")
 
 			// Send message to the receiver
 			if err := h.chatService.SendToClient(message.ReceiverID, &message); err != nil {
 				// If the receiver is not connected, handle if needed
 				continue
 			}
+
+			fmt.Println("message.2")
+
 		}
 	}()
 }

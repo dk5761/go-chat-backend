@@ -9,6 +9,7 @@ import (
 
 	"github.com/dk5761/go-serv/internal/infrastructure/logging"
 	"github.com/gin-gonic/gin"
+	"github.com/gorilla/websocket"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
@@ -25,6 +26,11 @@ func StartTracingMiddleware() gin.HandlerFunc {
 	tracer := otel.Tracer("github.com/dk5761/go-serv")
 
 	return func(c *gin.Context) {
+
+		if websocket.IsWebSocketUpgrade(c.Request) {
+			c.Next()
+			return
+		}
 		// Start a new span using the existing request context to propagate any trace information
 		ctx, span := tracer.Start(c.Request.Context(), c.Request.URL.Path)
 		defer span.End() // Ensure the span ends after the request completes
@@ -38,6 +44,10 @@ func StartTracingMiddleware() gin.HandlerFunc {
 // TracingMiddleware extracts and sets the trace ID in the context for logging
 func TracingMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
+		if websocket.IsWebSocketUpgrade(c.Request) {
+			c.Next()
+			return
+		}
 		// Retrieve trace ID from OpenTelemetry
 		spanCtx := trace.SpanFromContext(c.Request.Context()).SpanContext()
 
@@ -68,6 +78,11 @@ func (w *responseWriter) WriteString(s string) (int, error) {
 // TraceIDResponseMiddleware is the middleware that wraps JSON responses with a trace ID
 func TraceIDResponseMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
+		if websocket.IsWebSocketUpgrade(c.Request) {
+			c.Next()
+			return
+		}
+
 		// Retrieve trace ID from context (set by another middleware, e.g., TracingMiddleware)
 		traceID, exists := c.Get("trace_id")
 		if !exists {

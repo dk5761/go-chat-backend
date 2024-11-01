@@ -31,8 +31,9 @@ func (s *chatService) UploadFile(ctx context.Context, file multipart.File, fileN
 // SendMessage validates and saves a message to the repository.
 // If a file is attached, it uploads the file and saves the URL in the message.
 func (s *chatService) SendMessage(ctx context.Context, msg *models.Message, file multipart.File, fileName string) error {
-	// Set message ID and timestamp
-	msg.Timestamp = time.Now()
+
+	// Set message timestamp
+	msg.CreatedAt = time.Now()
 
 	// Handle optional file upload
 	if file != nil {
@@ -44,7 +45,21 @@ func (s *chatService) SendMessage(ctx context.Context, msg *models.Message, file
 	}
 
 	// Save the message in the repository
-	return s.msgRepo.SaveMessage(ctx, msg)
+	err := s.msgRepo.SaveMessage(ctx, msg)
+	if err != nil {
+		return err
+	}
+
+	// Send the message to the receiver over WebSocket
+	// if msg.ReceiverID != "" {
+	// 	err = s.wsManager.SendToClient(msg.ReceiverID, msg)
+	// 	if err != nil {
+	// 		fmt.Printf("Failed to send message over WebSocket: %v\n", err)
+	// 		return errors.New("failed to send message over WebSocket")
+	// 	}
+	// }
+
+	return nil
 }
 
 func (s *chatService) SendToClient(receiverID string, msg *models.Message) error {
