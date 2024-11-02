@@ -15,5 +15,5 @@ type AuthService interface {
 	Logout(ctx context.Context, userID uuid.UUID) error
 	DeleteUser(ctx context.Context, userID uuid.UUID) error
 	UpdateUserProfile(ctx context.Context, userID uuid.UUID, updates models.User) (*models.User, error)
-	GetUsers(ctx context.Context, q string, limit, offset int) ([]*models.User, error)
+	GetUsers(ctx context.Context, q string, limit, offset int) ([]*models.User, int, error)
 }
