@@ -77,35 +77,41 @@ func (r *postgresUserRepository) GetUserByUsername(ctx context.Context, username
 	return &user, nil
 }
 
-func (r *postgresUserRepository) GetUsers(ctx context.Context, q string, limit, offset int) ([]*models.User, error) {
+func (r *postgresUserRepository) GetUsers(ctx context.Context, q string, limit, offset int) ([]*models.User, int, error) {
 	query := `
-        SELECT id, username, email, created_at, updated_at
-        FROM users
-        WHERE username ILIKE '%' || $1 || '%' OR email ILIKE '%' || $1 || '%'
-        LIMIT $2 OFFSET $3
+        WITH users_with_count AS (
+            SELECT 
+                id, username, email, created_at, updated_at,
+                COUNT(*) OVER() AS total_count
+            FROM users
+            WHERE username ILIKE '%' || $1 || '%' OR email ILIKE '%' || $1 || '%'
+            ORDER BY created_at DESC
+            LIMIT $2 OFFSET $3
+        )
+        SELECT id, username, email, created_at, updated_at, total_count FROM users_with_count;
     `
 
-	// Execute query with `q`, `limit`, and `offset` as parameters
 	rows, err := r.db.Query(ctx, query, q, limit, offset)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 	defer rows.Close()
 
 	var users []*models.User
+	var totalItems int
 	for rows.Next() {
 		var user models.User
-		if err := rows.Scan(&user.ID, &user.Username, &user.Email, &user.CreatedAt, &user.UpdatedAt); err != nil {
-			return nil, err
+		if err := rows.Scan(&user.ID, &user.Username, &user.Email, &user.CreatedAt, &user.UpdatedAt, &totalItems); err != nil {
+			return nil, 0, err
 		}
 		users = append(users, &user)
 	}
 
 	if err := rows.Err(); err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 
-	return users, nil
+	return users, totalItems, nil
 }
 
 // UpdateLastLogin updates the last login time and last login token for the user

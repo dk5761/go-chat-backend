@@ -28,5 +28,5 @@ type UserRepository interface {
 
 	UpdateUser(ctx context.Context, user *models.User) error
 	DeleteUser(ctx context.Context, userID uuid.UUID) error
-	GetUsers(ctx context.Context, q string, limit, offset int) ([]*models.User, error)
+	GetUsers(ctx context.Context, q string, limit, offset int) ([]*models.User, int, error)
 }

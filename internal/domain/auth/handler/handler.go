@@ -2,13 +2,14 @@ package handler
 
 import (
 	"fmt"
+	"math"
 	"net/http"
-	"strconv"
 
 	"github.com/dk5761/go-serv/internal/domain/auth/dto"
 	"github.com/dk5761/go-serv/internal/domain/auth/models"
 	"github.com/dk5761/go-serv/internal/domain/auth/repository"
 	"github.com/dk5761/go-serv/internal/domain/auth/service"
+	"github.com/dk5761/go-serv/internal/utils"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 )
@@ -208,25 +209,25 @@ func (h *AuthHandler) GetUsers(c *gin.Context) {
 		return
 	}
 
-	// Retrieve and parse limit and offset with default values
-	limit, err := strconv.Atoi(c.DefaultQuery("limit", "10"))
-	if err != nil || limit < 1 {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid limit"})
-		return
-	}
-
-	offset, err := strconv.Atoi(c.DefaultQuery("offset", "0"))
-	if err != nil || offset < 0 {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid offset"})
+	pagination, limit, offset, err := utils.Paginate(c, 0) // Set totalItems to 0 initially
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid pagination parameters"})
 		return
 	}
 
 	// Call the service with limit and offset
-	users, err := h.AuthService.GetUsers(c.Request.Context(), q, limit, offset)
+	users, totalItems, err := h.AuthService.GetUsers(c.Request.Context(), q, limit, offset)
+
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve users"})
 		return
 	}
 
-	c.JSON(http.StatusOK, users)
+	pagination.TotalItems = totalItems
+	pagination.TotalPages = int(math.Ceil(float64(totalItems) / float64(limit)))
+
+	c.JSON(http.StatusOK, gin.H{
+		"users":      users,
+		"pagination": pagination,
+	})
 }
