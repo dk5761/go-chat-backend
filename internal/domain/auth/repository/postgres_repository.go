@@ -84,7 +84,7 @@ func (r *postgresUserRepository) GetUsers(ctx context.Context, q string, limit, 
                 id, username, email, created_at, updated_at,
                 COUNT(*) OVER() AS total_count
             FROM users
-            WHERE username ILIKE '%' || $1 || '%' OR email ILIKE '%' || $1 || '%'
+            WHERE username ILIKE '%' || $1 || '%'
             ORDER BY created_at DESC
             LIMIT $2 OFFSET $3
         )
