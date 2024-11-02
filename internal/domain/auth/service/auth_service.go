@@ -23,11 +23,16 @@ func NewAuthService(userRepo repository.UserRepository, jwtService JWTService) A
 	return &authService{userRepo, jwtService}
 }
 
-func (s *authService) SignUp(ctx context.Context, email, password string) error {
+func (s *authService) SignUp(ctx context.Context, email, username, password string) error {
 	// Check if user already exists
 	_, err := s.userRepo.GetUserByEmail(ctx, email)
 	if err == nil {
 		return errors.New("user already exists")
+	}
+
+	_, err = s.userRepo.GetUserByUsername(ctx, username)
+	if err == nil {
+		return errors.New("username is already in use")
 	}
 
 	hashedPassword, err := helpers.HashPassword(password)
@@ -38,6 +43,7 @@ func (s *authService) SignUp(ctx context.Context, email, password string) error 
 	user := &models.User{
 		ID:             uuid.New(),
 		Email:          email,
+		Username:       username,
 		PasswordHash:   hashedPassword,
 		CreatedAt:      time.Now(),
 		UpdatedAt:      time.Now(),
@@ -94,6 +100,19 @@ func (s *authService) GetUserByID(ctx context.Context, userID uuid.UUID) (*model
 	return user, nil
 }
 
+func (s *authService) GetUserByUsername(ctx context.Context, username string) (*models.User, error) {
+
+	// Query the repository to get the user by username
+	user, err := s.userRepo.GetUserByUsername(ctx, username)
+	if err != nil {
+		if errors.Is(err, common.ErrNotFound) {
+			return nil, errors.New("user not found")
+		}
+		return nil, err
+	}
+	return user, nil
+}
+
 func (s *authService) Logout(ctx context.Context, userID uuid.UUID) error {
 	// Retrieve the user to confirm existence
 	user, err := s.userRepo.GetUserByID(ctx, userID)
@@ -128,5 +147,18 @@ func (s *authService) UpdateUserProfile(ctx context.Context, userID uuid.UUID, u
 		return nil, err
 	}
 
+	return user, nil
+}
+
+func (s *authService) GetUsers(ctx context.Context, q string, limit, offset int) ([]*models.User, error) {
+
+	// Query the repository to get the user by username
+	user, err := s.userRepo.GetUsers(ctx, q, limit, offset)
+	if err != nil {
+		if errors.Is(err, common.ErrNotFound) {
+			return nil, errors.New("user not found")
+		}
+		return nil, err
+	}
 	return user, nil
 }
