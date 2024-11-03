@@ -4,13 +4,14 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"github.com/dk5761/go-serv/internal/infrastructure/logging"
-	"go.uber.org/zap"
+	"fmt"
 	"log"
 	"sync"
 
 	"github.com/dk5761/go-serv/internal/domain/chat/models"
 	"github.com/dk5761/go-serv/internal/domain/chat/repository"
+	"github.com/dk5761/go-serv/internal/infrastructure/logging"
+	"go.uber.org/zap"
 )
 
 type WebSocketManager struct {
@@ -93,6 +94,7 @@ func (m *WebSocketManager) listenToClient(client *models.Client) {
 		case "send_message":
 			// Standard message event
 			message.SenderID = client.ID
+			fmt.Println("client_id", client.ID)
 			message.EventType = "receive_message"
 			if err := m.processMessage(client, &message); err != nil {
 				logging.Logger.Error("Error processing send_message event",

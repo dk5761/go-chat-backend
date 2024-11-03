@@ -134,14 +134,14 @@ func (r *postgresUserRepository) UpdateLastLogin(ctx context.Context, userID uui
 // GetUserByID retrieves a user by ID, including the updated timestamp fields
 func (r *postgresUserRepository) GetUserByID(ctx context.Context, userID uuid.UUID) (*models.User, error) {
 	query := `
-        SELECT id, email, password_hash, created_at, updated_at, last_login, last_login_token
+        SELECT id, email, username, password_hash, created_at, updated_at, last_login, last_login_token
         FROM users
         WHERE id = $1
     `
 	row := r.db.QueryRow(ctx, query, userID)
 
 	var user models.User
-	err := row.Scan(&user.ID, &user.Email, &user.PasswordHash, &user.CreatedAt, &user.UpdatedAt, &user.LastLogin, &user.LastLoginToken)
+	err := row.Scan(&user.ID, &user.Email, &user.Username, &user.PasswordHash, &user.CreatedAt, &user.UpdatedAt, &user.LastLogin, &user.LastLoginToken)
 	if err != nil {
 		if err == pgx.ErrNoRows {
 			return nil, common.ErrNotFound

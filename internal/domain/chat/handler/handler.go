@@ -113,6 +113,7 @@ func (h *ChatHandler) HandleWebSocket(c *gin.Context) {
 		Conn:   conn,
 		SendCh: make(chan *models.Message, 10),
 	}
+
 	h.wsManager.AddClient(client)
 }
 
