@@ -101,6 +101,9 @@ func (m *WebSocketManager) listenToClient(client *models.Client) {
 					zap.String("client_id", client.ID),
 					zap.Error(err),
 				)
+			} else {
+				// Send back acknowledgment to sender with message details
+				m.sendAcknowledgment(client, &message)
 			}
 
 		case "typing":
@@ -138,6 +141,24 @@ func (m *WebSocketManager) listenToClient(client *models.Client) {
 				zap.String("event_type", message.EventType),
 			)
 		}
+	}
+}
+
+func (m *WebSocketManager) sendAcknowledgment(client *models.Client, message *models.Message) {
+	ackMessage := &models.Message{
+		ID:         message.ID,
+		SenderID:   message.SenderID,
+		ReceiverID: message.ReceiverID,
+		Content:    message.Content,
+		EventType:  "message_acknowledgment",
+		CreatedAt:  message.CreatedAt,
+	}
+
+	select {
+	case client.SendCh <- ackMessage:
+		log.Printf("Acknowledgment sent to client %s", client.ID)
+	default:
+		log.Printf("Acknowledgment failed to send; SendCh full for client %s", client.ID)
 	}
 }
 
