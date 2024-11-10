@@ -39,7 +39,8 @@ func (m *WebSocketManager) AddClient(client *models.Client) {
 	go client.Listen()
 
 	go m.listenToClient(client)
-	m.deliverUndeliveredMessages(client)
+	go m.deliverUndeliveredMessages(client)
+	go m.sendPendingMessages(client)
 }
 
 func (m *WebSocketManager) RemoveClient(clientID string) {
@@ -204,6 +205,10 @@ func (m *WebSocketManager) listenToClient(client *models.Client) {
 }
 
 func (m *WebSocketManager) sendAcknowledgment(client *models.Client, message *models.Message, status models.MessageStatus) {
+	m.mu.RLock()
+	originalSenderClient, exists := m.clients[message.SenderID]
+	m.mu.RUnlock()
+
 	ackMessage := &models.Message{
 		ID:          message.ID,
 		SenderID:    message.SenderID,
@@ -213,34 +218,73 @@ func (m *WebSocketManager) sendAcknowledgment(client *models.Client, message *mo
 		CreatedAt:   time.Now(),
 		Delivered:   message.Delivered,
 		DeliveredAt: message.DeliveredAt,
+		Content:     message.Content,
+		FileURL:     message.FileURL,
 	}
 
-	select {
-	case client.SendCh <- ackMessage:
-		log.Printf("Acknowledgment sent to client %s with status %s", client.ID, status)
-	default:
-		log.Printf("Acknowledgment failed to send; SendCh full for client %s", client.ID)
+	if exists {
+		// If client is connected, send the acknowledgment over WebSocket
+		select {
+		case originalSenderClient.SendCh <- ackMessage:
+			log.Printf("Acknowledgment sent to client %s", message.SenderID)
+		default:
+			log.Printf("SendCh is full; acknowledgment not sent to client %s", message.SenderID)
+			// Optionally, mark acknowledgment as undelivered in the database for retry
+			if err := m.msgRepo.MarkAcknowledgmentPending(context.Background(), message.ID); err != nil {
+				logging.Logger.Error("Failed to mark acknowledgment as pending", zap.Error(err))
+			}
+		}
+	} else {
+		// If client is offline, store acknowledgment status as pending in the database
+		if err := m.msgRepo.MarkAcknowledgmentPending(context.Background(), message.ID); err != nil {
+			logging.Logger.Error("Failed to mark acknowledgment as pending", zap.Error(err))
+		}
+		log.Printf("Client %s is offline; acknowledgment stored as pending", message.SenderID)
+	}
+}
+
+// sendPendingMessages retrieves and sends any pending messages to the reconnected client
+func (m *WebSocketManager) sendPendingMessages(client *models.Client) {
+	// Retrieve pending messages for this client
+	messages, err := m.msgRepo.GetPendingAcknowledgments(context.Background(), client.ID)
+	if err != nil {
+		logging.Logger.Error("Failed to retrieve pending messages", zap.String("client_id", client.ID), zap.Error(err))
+		return
+	}
+
+	for _, message := range messages {
+		// Send each pending message to the client
+		client.SendCh <- message
+		messageID := message.ID // Assuming message ID is provided in acknowledgment
+		if err := m.msgRepo.UpdateMessageStatus(context.Background(), messageID, models.Received); err != nil {
+			logging.Logger.Error("Error updating message status", zap.Error(err))
+			continue
+		}
+		// Mark as delivered if sent successfully
+		if err := m.msgRepo.MarkMessageAsDelivered(context.Background(), message.ID); err != nil {
+			logging.Logger.Error("Error marking message as delivered", zap.String("client_id", client.ID), zap.Error(err))
+		}
 	}
 }
 
 // processMessage handles the received message and routes it as needed
-func (m *WebSocketManager) processMessage(client *models.Client, message *models.Message) error {
+// func (m *WebSocketManager) processMessage(client *models.Client, message *models.Message) error {
 
-	message.SenderID = client.ID
-	message.CreatedAt = time.Now()
+// 	message.SenderID = client.ID
+// 	message.CreatedAt = time.Now()
 
-	// Save message to the database
-	id, err := m.msgRepo.SaveMessage(context.Background(), message)
-	if err != nil {
-		log.Printf("Failed to save message from client %s: %v\n", client.ID, err)
-		return err
-	}
-	// You can add logic to handle different message types here
-	// Example: Sending message to another client by ID
+// 	// Save message to the database
+// 	id, err := m.msgRepo.SaveMessage(context.Background(), message)
+// 	if err != nil {
+// 		log.Printf("Failed to save message from client %s: %v\n", client.ID, err)
+// 		return err
+// 	}
+// 	// You can add logic to handle different message types here
+// 	// Example: Sending message to another client by ID
 
-	message.ID = id
-	if message.ReceiverID != "" {
-		return m.SendToClient(message.ReceiverID, message)
-	}
-	return nil
-}
+// 	message.ID = id
+// 	if message.ReceiverID != "" {
+// 		return m.SendToClient(message.ReceiverID, message)
+// 	}
+// 	return nil
+// }
