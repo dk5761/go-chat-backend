@@ -120,6 +120,7 @@ func (m *WebSocketManager) markMessageAsDelivered(messageID primitive.ObjectID) 
 	if err := m.msgRepo.MarkMessageAsDelivered(context.Background(), messageID); err != nil {
 		logging.Logger.Error("Failed to mark message as delivered", zap.Error(err))
 	}
+
 }
 
 func (m *WebSocketManager) listenToClient(client *models.Client) {
@@ -153,6 +154,7 @@ func (m *WebSocketManager) listenToClient(client *models.Client) {
 			// Standard message event
 			message.Status = models.Stored
 			message.SenderID = client.ID
+			message.EventType = "receive_message"
 
 			messageID, err := m.msgRepo.SaveMessage(context.Background(), &message)
 			if err != nil {
@@ -173,11 +175,13 @@ func (m *WebSocketManager) listenToClient(client *models.Client) {
 		case "ack_received":
 			// Handle acknowledgment from receiver client
 			messageID := message.ID // Assuming message ID is provided in acknowledgment
+			// update the local message body with the Receieved status
+
 			if err := m.msgRepo.UpdateMessageStatus(context.Background(), messageID, models.Received); err != nil {
 				logging.Logger.Error("Error updating message status", zap.Error(err))
 				continue
 			}
-			message.Status = models.Received // update the local message body with the Receieved status
+			message.Status = models.Received
 
 			if err := m.msgRepo.MarkMessageAsDelivered(context.Background(), messageID); err != nil {
 				logging.Logger.Error("Error updating message status", zap.Error(err))
