@@ -241,15 +241,31 @@ func (m *WebSocketManager) sendAcknowledgment(message *models.Message, status mo
 func (m *WebSocketManager) sendPendingMessages(client *models.Client) {
 	// Retrieve pending messages for this client
 	messages, err := m.msgRepo.GetPendingAcknowledgments(context.Background(), client.ID)
+
 	if err != nil {
 		logging.Logger.Error("Failed to retrieve pending messages", zap.String("client_id", client.ID), zap.Error(err))
 		return
 	}
 
 	for _, message := range messages {
-		// Send each pending message to the client
-		client.SendCh <- message
+		// Send each pending message to the client\
+
+		ackMessage := &models.Message{
+			ID:          message.ID,
+			SenderID:    message.SenderID,
+			ReceiverID:  message.ReceiverID,
+			EventType:   "acknowledgment",
+			Status:      models.Received, // Send the status as acknowledgment type
+			CreatedAt:   time.Now(),
+			Delivered:   message.Delivered,
+			DeliveredAt: message.DeliveredAt,
+			Content:     message.Content,
+			FileURL:     message.FileURL,
+		}
+		client.SendCh <- ackMessage
 		messageID := message.ID // Assuming message ID is provided in acknowledgment
+
+		fmt.Println("data", messageID)
 		if err := m.msgRepo.UpdateMessageStatus(context.Background(), messageID, models.Received); err != nil {
 			logging.Logger.Error("Error updating message status", zap.Error(err))
 			continue

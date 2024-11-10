@@ -196,8 +196,8 @@ func (r *mongoMessageRepository) MarkAcknowledgmentPending(ctx context.Context, 
 // GetPendingAcknowledgments retrieves all undelivered messages for a user
 func (r *mongoMessageRepository) GetPendingAcknowledgments(ctx context.Context, receiverID string) ([]*models.Message, error) {
 	filter := bson.M{
-		"receiver_id": receiverID,
-		"status":      models.Pending, // Fetch messages with the "Pending" status
+		"sender_id": receiverID,
+		"status":    models.Pending, // Fetch messages with the "Pending" status
 	}
 
 	// Optional: sort by created_at to deliver in order
