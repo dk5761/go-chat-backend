@@ -15,4 +15,8 @@ type MessageRepository interface {
 	GetUndeliveredMessages(ctx context.Context, receiverID string) ([]*models.Message, error)
 	MarkMessageAsDelivered(ctx context.Context, messageID primitive.ObjectID) error
 	StoreUndeliveredMessage(ctx context.Context, msg *models.Message) (primitive.ObjectID, error)
+	UpdateMessageStatus(ctx context.Context, messageID primitive.ObjectID, status models.MessageStatus) error
+	GetMessage(ctx context.Context, messageID primitive.ObjectID) (*models.Message, error)
+	MarkAcknowledgmentPending(ctx context.Context, messageID primitive.ObjectID) error
+	GetPendingAcknowledgments(ctx context.Context, receiverID string) ([]*models.Message, error)
 }

@@ -39,7 +39,8 @@ func (m *WebSocketManager) AddClient(client *models.Client) {
 	go client.Listen()
 
 	go m.listenToClient(client)
-	m.deliverUndeliveredMessages(client)
+	go m.deliverUndeliveredMessages(client)
+	go m.sendPendingMessages(client)
 }
 
 func (m *WebSocketManager) RemoveClient(clientID string) {
@@ -150,47 +151,43 @@ func (m *WebSocketManager) listenToClient(client *models.Client) {
 		switch message.EventType {
 		case "send_message":
 			// Standard message event
+			message.Status = models.Stored
 			message.SenderID = client.ID
-			fmt.Println("client_id", client.ID)
-			message.EventType = "receive_message"
-			if err := m.processMessage(client, &message); err != nil {
-				logging.Logger.Error("Error processing send_message event",
-					zap.String("client_id", client.ID),
-					zap.Error(err),
-				)
-			} else {
-				// Send back acknowledgment to sender with message details
-				m.sendAcknowledgment(client, &message)
+
+			messageID, err := m.msgRepo.SaveMessage(context.Background(), &message)
+			if err != nil {
+				logging.Logger.Error("Error saving message", zap.Error(err))
+				continue
+			}
+			message.ID = messageID
+
+			// Send acknowledgment back to sender client
+			m.sendAcknowledgment(&message, models.Stored)
+
+			// Try delivering to receiver if connected
+			if err := m.SendToClient(message.ReceiverID, &message); err == nil {
+				// Update message status to Delivered in DB
+				m.msgRepo.UpdateMessageStatus(context.Background(), messageID, models.Sent)
 			}
 
-		case "typing":
-			// Notify the receiver that the sender is typing
-			if err := m.notifyTypingEvent(message.ReceiverID, &message); err != nil {
-				logging.Logger.Error("Error processing typing event",
-					zap.String("client_id", client.ID),
-					zap.Error(err),
-				)
+		case "ack_received":
+			// Handle acknowledgment from receiver client
+			messageID := message.ID // Assuming message ID is provided in acknowledgment
+			if err := m.msgRepo.UpdateMessageStatus(context.Background(), messageID, models.Received); err != nil {
+				logging.Logger.Error("Error updating message status", zap.Error(err))
+				continue
+			}
+			message.Status = models.Received // update the local message body with the Receieved status
+
+			if err := m.msgRepo.MarkMessageAsDelivered(context.Background(), messageID); err != nil {
+				logging.Logger.Error("Error updating message status", zap.Error(err))
+				continue
 			}
 
-		case "join":
-			// Handle user joining the chat
-			if err := m.handleUserJoin(client); err != nil {
-				logging.Logger.Error("Error handling join event",
-					zap.String("client_id", client.ID),
-					zap.Error(err),
-				)
-			}
+			message.Delivered = true // Update the lmb with Deliver == true and time.
+			message.DeliveredAt = time.Now()
 
-		case "leave":
-			// Handle user leaving the chat
-			if err := m.handleUserLeave(client); err != nil {
-
-				logging.Logger.Error("Error handling leave event",
-					zap.String("client_id", client.ID),
-					zap.Error(err),
-				)
-			}
-			return // Exit the loop if the client leaves
+			m.sendAcknowledgment(&message, models.Received)
 
 		default:
 			logging.Logger.Error("Unhandled event type",
@@ -201,76 +198,103 @@ func (m *WebSocketManager) listenToClient(client *models.Client) {
 	}
 }
 
-func (m *WebSocketManager) sendAcknowledgment(client *models.Client, message *models.Message) {
+func (m *WebSocketManager) sendAcknowledgment(message *models.Message, status models.MessageStatus) {
+	m.mu.RLock()
+	originalSenderClient, exists := m.clients[message.SenderID]
+	m.mu.RUnlock()
+
 	ackMessage := &models.Message{
-		ID:         message.ID,
-		SenderID:   message.SenderID,
-		ReceiverID: message.ReceiverID,
-		Content:    message.Content,
-		EventType:  "message_acknowledgment",
-		CreatedAt:  message.CreatedAt,
+		ID:          message.ID,
+		SenderID:    message.SenderID,
+		ReceiverID:  message.ReceiverID,
+		EventType:   "acknowledgment",
+		Status:      status, // Send the status as acknowledgment type
+		CreatedAt:   time.Now(),
+		Delivered:   message.Delivered,
+		DeliveredAt: message.DeliveredAt,
+		Content:     message.Content,
+		FileURL:     message.FileURL,
 	}
 
-	select {
-	case client.SendCh <- ackMessage:
-		log.Printf("Acknowledgment sent to client %s", client.ID)
-	default:
-		log.Printf("Acknowledgment failed to send; SendCh full for client %s", client.ID)
+	if exists {
+		// If client is connected, send the acknowledgment over WebSocket
+		select {
+		case originalSenderClient.SendCh <- ackMessage:
+			log.Printf("Acknowledgment sent to client %s", message.SenderID)
+		default:
+			log.Printf("SendCh is full; acknowledgment not sent to client %s", message.SenderID)
+			// Optionally, mark acknowledgment as undelivered in the database for retry
+			if err := m.msgRepo.MarkAcknowledgmentPending(context.Background(), message.ID); err != nil {
+				logging.Logger.Error("Failed to mark acknowledgment as pending", zap.Error(err))
+			}
+		}
+	} else {
+		// If client is offline, store acknowledgment status as pending in the database
+		if err := m.msgRepo.MarkAcknowledgmentPending(context.Background(), message.ID); err != nil {
+			logging.Logger.Error("Failed to mark acknowledgment as pending", zap.Error(err))
+		}
+		log.Printf("Client %s is offline; acknowledgment stored as pending", message.SenderID)
+	}
+}
+
+// sendPendingMessages retrieves and sends any pending messages to the reconnected client
+func (m *WebSocketManager) sendPendingMessages(client *models.Client) {
+	// Retrieve pending messages for this client
+	messages, err := m.msgRepo.GetPendingAcknowledgments(context.Background(), client.ID)
+
+	if err != nil {
+		logging.Logger.Error("Failed to retrieve pending messages", zap.String("client_id", client.ID), zap.Error(err))
+		return
+	}
+
+	for _, message := range messages {
+		// Send each pending message to the client\
+
+		ackMessage := &models.Message{
+			ID:          message.ID,
+			SenderID:    message.SenderID,
+			ReceiverID:  message.ReceiverID,
+			EventType:   "acknowledgment",
+			Status:      models.Received, // Send the status as acknowledgment type
+			CreatedAt:   time.Now(),
+			Delivered:   message.Delivered,
+			DeliveredAt: message.DeliveredAt,
+			Content:     message.Content,
+			FileURL:     message.FileURL,
+		}
+		client.SendCh <- ackMessage
+		messageID := message.ID // Assuming message ID is provided in acknowledgment
+
+		fmt.Println("data", messageID)
+		if err := m.msgRepo.UpdateMessageStatus(context.Background(), messageID, models.Received); err != nil {
+			logging.Logger.Error("Error updating message status", zap.Error(err))
+			continue
+		}
+		// Mark as delivered if sent successfully
+		if err := m.msgRepo.MarkMessageAsDelivered(context.Background(), message.ID); err != nil {
+			logging.Logger.Error("Error marking message as delivered", zap.String("client_id", client.ID), zap.Error(err))
+		}
 	}
 }
 
 // processMessage handles the received message and routes it as needed
-func (m *WebSocketManager) processMessage(client *models.Client, message *models.Message) error {
+// func (m *WebSocketManager) processMessage(client *models.Client, message *models.Message) error {
 
-	message.SenderID = client.ID
-	message.CreatedAt = time.Now()
+// 	message.SenderID = client.ID
+// 	message.CreatedAt = time.Now()
 
-	// Save message to the database
-	id, err := m.msgRepo.SaveMessage(context.Background(), message)
-	if err != nil {
-		log.Printf("Failed to save message from client %s: %v\n", client.ID, err)
-		return err
-	}
-	// You can add logic to handle different message types here
-	// Example: Sending message to another client by ID
+// 	// Save message to the database
+// 	id, err := m.msgRepo.SaveMessage(context.Background(), message)
+// 	if err != nil {
+// 		log.Printf("Failed to save message from client %s: %v\n", client.ID, err)
+// 		return err
+// 	}
+// 	// You can add logic to handle different message types here
+// 	// Example: Sending message to another client by ID
 
-	message.ID = id
-	if message.ReceiverID != "" {
-		return m.SendToClient(message.ReceiverID, message)
-	}
-	return nil
-}
-
-func (m *WebSocketManager) notifyTypingEvent(receiverID string, msg *models.Message) error {
-	m.mu.Lock()
-	receiver, exists := m.clients[receiverID]
-	m.mu.Unlock()
-
-	if !exists {
-		logging.Logger.Error("client not connected", zap.String("receiver_id", receiverID))
-		return nil
-	}
-
-	select {
-	case receiver.SendCh <- msg:
-		return nil
-	default:
-		logging.Logger.Error("SendCh is full", zap.String("client ID", receiverID))
-		return nil
-
-	}
-}
-
-// handleUserJoin performs actions when a user joins
-func (m *WebSocketManager) handleUserJoin(client *models.Client) error {
-	log.Printf("User %s has joined", client.ID)
-	// Additional join logic here
-	return nil
-}
-
-// handleUserLeave performs cleanup when a user leaves
-func (m *WebSocketManager) handleUserLeave(client *models.Client) error {
-	log.Printf("User %s has left", client.ID)
-	m.RemoveClient(client.ID)
-	return nil
-}
+// 	message.ID = id
+// 	if message.ReceiverID != "" {
+// 		return m.SendToClient(message.ReceiverID, message)
+// 	}
+// 	return nil
+// }

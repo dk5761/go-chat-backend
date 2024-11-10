@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -127,6 +128,7 @@ func (r *mongoMessageRepository) GetUndeliveredMessages(ctx context.Context, rec
 func (r *mongoMessageRepository) MarkMessageAsDelivered(ctx context.Context, messageID primitive.ObjectID) error {
 	update := bson.M{
 		"$set": bson.M{
+
 			"delivered":    true,
 			"delivered_at": time.Now(),
 		},
@@ -148,4 +150,69 @@ func (r *mongoMessageRepository) StoreUndeliveredMessage(ctx context.Context, ms
 	}
 
 	return result.InsertedID.(primitive.ObjectID), nil
+}
+
+func (r *mongoMessageRepository) UpdateMessageStatus(ctx context.Context, messageID primitive.ObjectID, status models.MessageStatus) error {
+	filter := bson.M{"_id": messageID}
+	update := bson.M{"$set": bson.M{"status": status}}
+
+	_, err := r.collection.UpdateOne(ctx, filter, update)
+	return err
+}
+
+func (r *mongoMessageRepository) GetMessage(ctx context.Context, messageID primitive.ObjectID) (*models.Message, error) {
+	// Define the filter for the message ID
+	filter := bson.M{"_id": messageID}
+
+	// Prepare a variable to hold the result
+	var message models.Message
+
+	// Execute the query
+	err := r.collection.FindOne(ctx, filter).Decode(&message)
+	if err != nil {
+		if err == mongo.ErrNoDocuments {
+			return nil, errors.New("message not found")
+		}
+		return nil, err
+	}
+
+	return &message, nil
+}
+
+func (r *mongoMessageRepository) MarkAcknowledgmentPending(ctx context.Context, messageID primitive.ObjectID) error {
+	filter := bson.M{"_id": messageID}
+	update := bson.M{
+		"$set": bson.M{
+			"status":       models.Pending, // Use a status constant like "Pending"
+			"delivered":    false,
+			"delivered_at": time.Time{}, // Clear the delivered time if previously set
+		},
+	}
+
+	_, err := r.collection.UpdateOne(ctx, filter, update)
+	return err
+}
+
+// GetPendingAcknowledgments retrieves all undelivered messages for a user
+func (r *mongoMessageRepository) GetPendingAcknowledgments(ctx context.Context, receiverID string) ([]*models.Message, error) {
+	filter := bson.M{
+		"sender_id": receiverID,
+		"status":    models.Pending, // Fetch messages with the "Pending" status
+	}
+
+	// Optional: sort by created_at to deliver in order
+	findOptions := options.Find().SetSort(bson.D{{"created_at", 1}})
+
+	cursor, err := r.collection.Find(ctx, filter, findOptions)
+	if err != nil {
+		return nil, err
+	}
+	defer cursor.Close(ctx)
+
+	var messages []*models.Message
+	if err := cursor.All(ctx, &messages); err != nil {
+		return nil, err
+	}
+
+	return messages, nil
 }
