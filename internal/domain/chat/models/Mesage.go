@@ -6,6 +6,15 @@ import (
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
+type MessageStatus string
+
+const (
+	Stored   MessageStatus = "stored"
+	Sent     MessageStatus = "sent"
+	Received MessageStatus = "received"
+	Read     MessageStatus = "read"
+)
+
 type Message struct {
 	EventType   string             `json:"event_type"`
 	ID          primitive.ObjectID `bson:"_id,omitempty" json:"id"`
@@ -16,4 +25,5 @@ type Message struct {
 	FileURL     string             `bson:"file_url,omitempty" json:"file_url"`
 	Delivered   bool               `bson:"delivered" json:"delivered"`
 	DeliveredAt time.Time          `bson:"delivered_at,omitempty" json:"delivered_at,omitempty"`
+	Status      MessageStatus      `bson:"status"`
 }

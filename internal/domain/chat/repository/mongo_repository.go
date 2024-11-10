@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -148,4 +149,31 @@ func (r *mongoMessageRepository) StoreUndeliveredMessage(ctx context.Context, ms
 	}
 
 	return result.InsertedID.(primitive.ObjectID), nil
+}
+
+func (r *mongoMessageRepository) UpdateMessageStatus(ctx context.Context, messageID primitive.ObjectID, status models.MessageStatus) error {
+	filter := bson.M{"_id": messageID}
+	update := bson.M{"$set": bson.M{"status": status}}
+
+	_, err := r.collection.UpdateOne(ctx, filter, update)
+	return err
+}
+
+func (r *mongoMessageRepository) GetMessage(ctx context.Context, messageID primitive.ObjectID) (*models.Message, error) {
+	// Define the filter for the message ID
+	filter := bson.M{"_id": messageID}
+
+	// Prepare a variable to hold the result
+	var message models.Message
+
+	// Execute the query
+	err := r.collection.FindOne(ctx, filter).Decode(&message)
+	if err != nil {
+		if err == mongo.ErrNoDocuments {
+			return nil, errors.New("message not found")
+		}
+		return nil, err
+	}
+
+	return &message, nil
 }
