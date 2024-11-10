@@ -7,11 +7,14 @@ import (
 	"fmt"
 	"log"
 	"sync"
+	"time"
+
+	"go.mongodb.org/mongo-driver/bson/primitive"
+	"go.uber.org/zap"
 
 	"github.com/dk5761/go-serv/internal/domain/chat/models"
 	"github.com/dk5761/go-serv/internal/domain/chat/repository"
 	"github.com/dk5761/go-serv/internal/infrastructure/logging"
-	"go.uber.org/zap"
 )
 
 type WebSocketManager struct {
@@ -36,6 +39,7 @@ func (m *WebSocketManager) AddClient(client *models.Client) {
 	go client.Listen()
 
 	go m.listenToClient(client)
+	m.deliverUndeliveredMessages(client)
 }
 
 func (m *WebSocketManager) RemoveClient(clientID string) {
@@ -60,8 +64,61 @@ func (m *WebSocketManager) SendToClient(receiverID string, message *models.Messa
 		return errors.New("receiver not connected")
 	}
 
-	client.SendCh <- message
-	return nil
+	if !exists {
+		// Receiver is offline, store the message as undelivered
+		_, err := m.msgRepo.StoreUndeliveredMessage(context.Background(), message)
+		if err != nil {
+			logging.Logger.Error("Failed to store undelivered message",
+				zap.String("receiver_id", receiverID),
+				zap.Error(err),
+			)
+			return err
+		}
+		log.Printf("Stored undelivered message for offline client %s", receiverID)
+		return nil
+	}
+
+	// Receiver is online, send the message directly
+	select {
+	case client.SendCh <- message:
+		m.markMessageAsDelivered(message.ID)
+		return nil
+	default:
+		// If the SendCh is full, mark the message as undelivered
+		_, err := m.msgRepo.StoreUndeliveredMessage(context.Background(), message)
+		if err != nil {
+			logging.Logger.Error("Failed to store undelivered message for full channel",
+				zap.String("receiver_id", receiverID),
+				zap.Error(err),
+			)
+		}
+		return fmt.Errorf("client %s SendCh is full", receiverID)
+	}
+}
+
+func (m *WebSocketManager) deliverUndeliveredMessages(client *models.Client) {
+	undeliveredMessages, err := m.msgRepo.GetUndeliveredMessages(context.Background(), client.ID)
+	if err != nil {
+		logging.Logger.Error("Failed to fetch undelivered messages", zap.Error(err))
+		return
+	}
+
+	for _, message := range undeliveredMessages {
+		select {
+		case client.SendCh <- message:
+			// Mark message as delivered after sending
+			m.markMessageAsDelivered(message.ID)
+		default:
+			log.Printf("Failed to send message to client %s; SendCh full", client.ID)
+		}
+	}
+}
+
+// markMessageAsDelivered updates a message's status to delivered in MongoDB
+func (m *WebSocketManager) markMessageAsDelivered(messageID primitive.ObjectID) {
+	if err := m.msgRepo.MarkMessageAsDelivered(context.Background(), messageID); err != nil {
+		logging.Logger.Error("Failed to mark message as delivered", zap.Error(err))
+	}
 }
 
 func (m *WebSocketManager) listenToClient(client *models.Client) {
@@ -166,6 +223,7 @@ func (m *WebSocketManager) sendAcknowledgment(client *models.Client, message *mo
 func (m *WebSocketManager) processMessage(client *models.Client, message *models.Message) error {
 
 	message.SenderID = client.ID
+	message.CreatedAt = time.Now()
 
 	// Save message to the database
 	id, err := m.msgRepo.SaveMessage(context.Background(), message)

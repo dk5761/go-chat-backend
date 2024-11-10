@@ -3,14 +3,15 @@ package repository
 import (
 	"context"
 	"fmt"
-	"go.mongodb.org/mongo-driver/bson/primitive"
 	"time"
 
-	"github.com/dk5761/go-serv/internal/domain/chat/models"
 	"github.com/google/uuid"
 	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
+
+	"github.com/dk5761/go-serv/internal/domain/chat/models"
 )
 
 type mongoMessageRepository struct {
@@ -91,4 +92,60 @@ func (r *mongoMessageRepository) GetMessages(ctx context.Context, userID1, userI
 	}
 
 	return messages, nil
+}
+
+// GetUndeliveredMessages retrieves undelivered messages for a given receiver ID.
+func (r *mongoMessageRepository) GetUndeliveredMessages(ctx context.Context, receiverID string) ([]*models.Message, error) {
+	fiveDaysAgo := time.Now().AddDate(0, 0, -5)
+
+	// Define the filter to match undelivered messages for the receiver within the last 5 days
+	filter := bson.M{
+		"receiver_id": receiverID,
+		"delivered":   false,
+		"created_at": bson.M{
+			"$gte": fiveDaysAgo, // Only include messages created within the last 5 days
+		},
+	}
+
+	// Execute the query with the filter
+	cursor, err := r.collection.Find(ctx, filter)
+	if err != nil {
+		return nil, err
+	}
+	defer cursor.Close(ctx)
+
+	// Decode the results into a slice of messages
+	var messages []*models.Message
+	if err := cursor.All(ctx, &messages); err != nil {
+		return nil, err
+	}
+
+	return messages, nil
+}
+
+// MarkMessageAsDelivered updates the delivery status of a message.
+func (r *mongoMessageRepository) MarkMessageAsDelivered(ctx context.Context, messageID primitive.ObjectID) error {
+	update := bson.M{
+		"$set": bson.M{
+			"delivered":    true,
+			"delivered_at": time.Now(),
+		},
+	}
+
+	_, err := r.collection.UpdateByID(ctx, messageID, update, options.Update())
+	return err
+}
+
+func (r *mongoMessageRepository) StoreUndeliveredMessage(ctx context.Context, msg *models.Message) (primitive.ObjectID, error) {
+	// Set default fields for undelivered messages
+	msg.CreatedAt = time.Now()
+	msg.Delivered = false // Mark as undelivered
+
+	// Insert the message into MongoDB
+	result, err := r.collection.InsertOne(ctx, msg)
+	if err != nil {
+		return primitive.NilObjectID, err
+	}
+
+	return result.InsertedID.(primitive.ObjectID), nil
 }

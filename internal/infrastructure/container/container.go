@@ -1,6 +1,10 @@
 package container
 
 import (
+	"github.com/go-redis/redis/v8"
+	"github.com/jackc/pgx/v4/pgxpool"
+	"go.mongodb.org/mongo-driver/mongo"
+
 	"github.com/dk5761/go-serv/configs"
 	"github.com/dk5761/go-serv/internal/domain/auth"
 	authHandler "github.com/dk5761/go-serv/internal/domain/auth/handler"
@@ -9,9 +13,6 @@ import (
 	"github.com/dk5761/go-serv/internal/domain/chat/repository"
 	"github.com/dk5761/go-serv/internal/domain/chat/websocket"
 	"github.com/dk5761/go-serv/internal/infrastructure/storage"
-	"github.com/go-redis/redis/v8"
-	"github.com/jackc/pgx/v4/pgxpool"
-	"go.mongodb.org/mongo-driver/mongo"
 )
 
 type Container struct {
