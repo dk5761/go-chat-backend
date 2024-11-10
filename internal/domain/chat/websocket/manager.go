@@ -162,7 +162,7 @@ func (m *WebSocketManager) listenToClient(client *models.Client) {
 			message.ID = messageID
 
 			// Send acknowledgment back to sender client
-			m.sendAcknowledgment(client, &message, models.Stored)
+			m.sendAcknowledgment(&message, models.Stored)
 
 			// Try delivering to receiver if connected
 			if err := m.SendToClient(message.ReceiverID, &message); err == nil {
@@ -187,13 +187,7 @@ func (m *WebSocketManager) listenToClient(client *models.Client) {
 			message.Delivered = true // Update the lmb with Deliver == true and time.
 			message.DeliveredAt = time.Now()
 
-			// Notify sender of delivery
-
-			originalSenderClient, exists := m.clients[message.SenderID]
-
-			if exists {
-				m.sendAcknowledgment(originalSenderClient, &message, models.Received)
-			}
+			m.sendAcknowledgment(&message, models.Received)
 
 		default:
 			logging.Logger.Error("Unhandled event type",
@@ -204,7 +198,7 @@ func (m *WebSocketManager) listenToClient(client *models.Client) {
 	}
 }
 
-func (m *WebSocketManager) sendAcknowledgment(client *models.Client, message *models.Message, status models.MessageStatus) {
+func (m *WebSocketManager) sendAcknowledgment(message *models.Message, status models.MessageStatus) {
 	m.mu.RLock()
 	originalSenderClient, exists := m.clients[message.SenderID]
 	m.mu.RUnlock()
