@@ -4,8 +4,9 @@ import (
 	"context"
 	"time"
 
-	"github.com/dk5761/go-serv/internal/domain/auth/models"
 	"github.com/google/uuid"
+
+	"github.com/dk5761/go-serv/internal/domain/auth/models"
 )
 
 // UserRepository defines the interface for user-related data operations.
@@ -15,6 +16,7 @@ type UserRepository interface {
 
 	// GetUserByEmail retrieves a user by their email address.
 	GetUserByEmail(ctx context.Context, email string) (*models.User, error)
+	GetUserToken(ctx context.Context, recieverId string) (string, error)
 	GetUserByUsername(ctx context.Context, username string) (*models.User, error)
 
 	// GetUserByID retrieves a user by their unique ID.
@@ -27,6 +29,7 @@ type UserRepository interface {
 	UpdateUserTimestamps(ctx context.Context, userID uuid.UUID, updatedAt time.Time) error
 
 	UpdateUser(ctx context.Context, user *models.User) error
+	UpdateToken(ctx context.Context, user *models.User) error
 	DeleteUser(ctx context.Context, userID uuid.UUID) error
 	GetUsers(ctx context.Context, q string, limit, offset int) ([]*models.User, int, error)
 }

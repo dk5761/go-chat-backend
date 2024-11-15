@@ -5,13 +5,14 @@ import (
 	"math"
 	"net/http"
 
+	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
+
 	"github.com/dk5761/go-serv/internal/domain/auth/dto"
 	"github.com/dk5761/go-serv/internal/domain/auth/models"
 	"github.com/dk5761/go-serv/internal/domain/auth/repository"
 	"github.com/dk5761/go-serv/internal/domain/auth/service"
 	"github.com/dk5761/go-serv/internal/utils"
-	"github.com/gin-gonic/gin"
-	"github.com/google/uuid"
 )
 
 type AuthHandler struct {
@@ -139,6 +140,42 @@ func (h *AuthHandler) UpdateProfile(c *gin.Context) {
 	}
 
 	updatedUser, err := h.AuthService.UpdateUserProfile(c.Request.Context(), userID, updates)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update profile"})
+		return
+	}
+
+	c.JSON(http.StatusOK, dto.ProfileResponse{
+		ID:        updatedUser.ID.String(),
+		Email:     updatedUser.Email,
+		LastLogin: updatedUser.LastLogin,
+		// Include any additional updated fields
+	})
+}
+
+func (h *AuthHandler) UpdateDeviceToken(c *gin.Context) {
+	userIDValue, exists := c.Get("userID")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+		return
+	}
+
+	userID, ok := userIDValue.(uuid.UUID)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid user ID"})
+		return
+	}
+
+	var req dto.UpdateDeviceToken
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request parameters"})
+		return
+	}
+	updates := models.User{
+		DeviceToken: req.DeviceToken,
+	}
+
+	updatedUser, err := h.AuthService.UpdateDeviceToken(c.Request.Context(), userID, updates)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update profile"})
 		return

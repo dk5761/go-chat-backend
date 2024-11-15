@@ -14,6 +14,7 @@ type User struct {
 	CreatedAt      time.Time `json:"created_at"`
 	UpdatedAt      time.Time `json:"updated_at"`
 	LastLogin      time.Time `json:"last_login"`
+	DeviceToken    string    `json:"-"`
 	LastLoginToken time.Time `json:"-"` // Used to validate token timestamps
 
 }

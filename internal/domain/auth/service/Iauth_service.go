@@ -3,8 +3,9 @@ package service
 import (
 	"context"
 
-	"github.com/dk5761/go-serv/internal/domain/auth/models"
 	"github.com/google/uuid"
+
+	"github.com/dk5761/go-serv/internal/domain/auth/models"
 )
 
 type AuthService interface {
@@ -15,5 +16,6 @@ type AuthService interface {
 	Logout(ctx context.Context, userID uuid.UUID) error
 	DeleteUser(ctx context.Context, userID uuid.UUID) error
 	UpdateUserProfile(ctx context.Context, userID uuid.UUID, updates models.User) (*models.User, error)
+	UpdateDeviceToken(ctx context.Context, userID uuid.UUID, updates models.User) (*models.User, error)
 	GetUsers(ctx context.Context, q string, limit, offset int) ([]*models.User, int, error)
 }

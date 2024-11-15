@@ -12,21 +12,28 @@ import (
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.uber.org/zap"
 
+	userRepo "github.com/dk5761/go-serv/internal/domain/auth/repository"
 	"github.com/dk5761/go-serv/internal/domain/chat/models"
 	"github.com/dk5761/go-serv/internal/domain/chat/repository"
+	nModel "github.com/dk5761/go-serv/internal/domain/notifications/model"
+	"github.com/dk5761/go-serv/internal/domain/notifications/service"
 	"github.com/dk5761/go-serv/internal/infrastructure/logging"
 )
 
 type WebSocketManager struct {
-	clients map[string]*models.Client // Map userID to WebSocket client
-	mu      sync.RWMutex
-	msgRepo repository.MessageRepository
+	clients             map[string]*models.Client // Map userID to WebSocket client
+	mu                  sync.RWMutex
+	msgRepo             repository.MessageRepository
+	userRepo            userRepo.UserRepository
+	notificationService service.NotificationService
 }
 
-func NewWebSocketManager(msgRepo repository.MessageRepository) *WebSocketManager {
+func NewWebSocketManager(msgRepo repository.MessageRepository, userRepo userRepo.UserRepository, notificationService service.NotificationService) *WebSocketManager {
 	return &WebSocketManager{
-		clients: make(map[string]*models.Client),
-		msgRepo: msgRepo,
+		clients:             make(map[string]*models.Client),
+		msgRepo:             msgRepo,
+		userRepo:            userRepo,
+		notificationService: notificationService,
 	}
 }
 
@@ -60,6 +67,14 @@ func (m *WebSocketManager) SendToClient(receiverID string, message *models.Messa
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
+	token, err := m.userRepo.GetUserToken(context.Background(), receiverID)
+	if err != nil {
+		logging.Logger.Error("User Token Not Found",
+			zap.String("receiver_id", receiverID),
+			zap.Error(err),
+		)
+	}
+
 	client, exists := m.clients[receiverID]
 	if !exists {
 		return errors.New("receiver not connected")
@@ -76,6 +91,25 @@ func (m *WebSocketManager) SendToClient(receiverID string, message *models.Messa
 			return err
 		}
 		log.Printf("Stored undelivered message for offline client %s", receiverID)
+
+		err = m.notificationService.SendNotification(context.Background(), &nModel.Notification{
+			DeviceToken: token,
+			Title:       "New Message Received",
+			Body:        fmt.Sprintf("You have a new message from %s.", message.SenderID),
+			Data: map[string]string{
+				"message_id": message.ID.Hex(),
+				"sender_id":  message.SenderID,
+				"content":    message.Content,
+			},
+		}, receiverID)
+		if err != nil {
+			logging.Logger.Error("Failed to send notification for undelivered message",
+				zap.String("receiver_id", receiverID),
+				zap.Error(err),
+			)
+			return err
+		}
+
 		return nil
 	}
 

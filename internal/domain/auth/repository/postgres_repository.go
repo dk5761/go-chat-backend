@@ -5,11 +5,12 @@ import (
 	"errors"
 	"time"
 
-	"github.com/dk5761/go-serv/internal/domain/auth/models"
-	"github.com/dk5761/go-serv/internal/domain/common"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v4"
 	"github.com/jackc/pgx/v4/pgxpool"
+
+	"github.com/dk5761/go-serv/internal/domain/auth/models"
+	"github.com/dk5761/go-serv/internal/domain/common"
 )
 
 type postgresUserRepository struct {
@@ -179,6 +180,17 @@ func (r *postgresUserRepository) UpdateUser(ctx context.Context, user *models.Us
 	return err
 }
 
+func (r *postgresUserRepository) UpdateToken(ctx context.Context, user *models.User) error {
+	query := `
+	UPDATE users
+	SET device_token = $1
+	WHERE id = $2
+`
+
+	_, err := r.db.Exec(ctx, query, user.DeviceToken, user.ID)
+	return err
+}
+
 // DeleteUser deletes a user from the database by their user ID.
 func (r *postgresUserRepository) DeleteUser(ctx context.Context, userID uuid.UUID) error {
 	query := `DELETE FROM users WHERE id = $1`
@@ -194,4 +206,23 @@ func (r *postgresUserRepository) DeleteUser(ctx context.Context, userID uuid.UUI
 	}
 
 	return nil
+}
+
+func (r *postgresUserRepository) GetUserToken(ctx context.Context, receiverID string) (string, error) {
+	query := `
+        SELECT device_token
+        FROM users
+        WHERE id = $1
+    `
+	var deviceToken string
+
+	err := r.db.QueryRow(ctx, query, receiverID).Scan(&deviceToken)
+	if err != nil {
+		if err == pgx.ErrNoRows {
+			return "", common.ErrNotFound
+		}
+		return "", err
+	}
+
+	return deviceToken, nil
 }

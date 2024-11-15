@@ -5,13 +5,14 @@ import (
 	"errors"
 	"time"
 
+	"github.com/google/uuid"
+	"go.uber.org/zap"
+
 	"github.com/dk5761/go-serv/internal/domain/auth/models"
 	"github.com/dk5761/go-serv/internal/domain/auth/repository"
 	"github.com/dk5761/go-serv/internal/domain/common"
 	"github.com/dk5761/go-serv/internal/domain/common/helpers"
 	"github.com/dk5761/go-serv/internal/infrastructure/logging"
-	"github.com/google/uuid"
-	"go.uber.org/zap"
 )
 
 type authService struct {
@@ -150,6 +151,29 @@ func (s *authService) UpdateUserProfile(ctx context.Context, userID uuid.UUID, u
 	return user, nil
 }
 
+func (s *authService) UpdateDeviceToken(ctx context.Context, userID uuid.UUID, updates models.User) (*models.User, error) {
+	// Fetch the current user from the repository
+	user, err := s.userRepo.GetUserByID(ctx, userID)
+	if err != nil {
+		return nil, errors.New("user not found")
+	}
+
+	// Update only the fields that are allowed
+	if updates.DeviceToken != "" && updates.DeviceToken != user.DeviceToken {
+		user.DeviceToken = updates.DeviceToken
+	}
+
+	// Update timestamp fields
+	user.UpdatedAt = time.Now()
+
+	// Save updated user information
+	if err := s.userRepo.UpdateToken(ctx, user); err != nil {
+		return nil, err
+	}
+
+	return user, nil
+}
+
 func (s *authService) GetUsers(ctx context.Context, q string, limit, offset int) ([]*models.User, int, error) {
 
 	// Query the repository to get the user by username
@@ -161,4 +185,15 @@ func (s *authService) GetUsers(ctx context.Context, q string, limit, offset int)
 		return nil, 0, err
 	}
 	return user, totalItems, nil
+}
+
+func (s *authService) GetUserToken(ctx context.Context, recieverId string) (string, error) {
+	token, err := s.userRepo.GetUserToken(ctx, recieverId)
+	if err != nil {
+		if errors.Is(err, common.ErrNotFound) {
+			return "", errors.New("User Token Not Found")
+		}
+		return "", err
+	}
+	return token, nil
 }

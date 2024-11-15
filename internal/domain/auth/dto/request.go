@@ -20,3 +20,7 @@ type RefreshTokenRequest struct {
 type UpdateProfileRequest struct {
 	Email string `json:"email" binding:"omitempty"`
 }
+
+type UpdateDeviceToken struct {
+	DeviceToken string `json:"device_token" binding:"required"`
+}
