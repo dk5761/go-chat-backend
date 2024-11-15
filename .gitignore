@@ -3,6 +3,7 @@
 
 # Config files
 configs/config.yaml
+configs/**.json
 
 # Vendor
 vendor/
@@ -24,3 +25,4 @@ logs/
 *.out
 *.test
 coverage.out
+
