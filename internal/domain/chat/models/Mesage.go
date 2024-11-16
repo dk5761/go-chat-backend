@@ -19,6 +19,7 @@ const (
 type Message struct {
 	EventType   string             `bson:"event_type" json:"event_type"`
 	ID          primitive.ObjectID `bson:"_id,omitempty" json:"id"`
+	TempID      string             `bson:"temp_id,omitempty" json:"temp_id,omitempty"`
 	SenderID    string             `bson:"sender_id" json:"sender_id"`
 	ReceiverID  string             `bson:"receiver_id" json:"receiver_id"`
 	Content     string             `bson:"content" json:"content"`

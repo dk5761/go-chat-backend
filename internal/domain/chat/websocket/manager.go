@@ -212,6 +212,7 @@ func (m *WebSocketManager) sendAcknowledgment(message *models.Message, status mo
 		SenderID:    message.SenderID,
 		ReceiverID:  message.ReceiverID,
 		EventType:   "acknowledgment",
+		TempID:      message.TempID,
 		Status:      status, // Send the status as acknowledgment type
 		CreatedAt:   time.Now(),
 		Delivered:   message.Delivered,
@@ -259,6 +260,7 @@ func (m *WebSocketManager) sendPendingMessages(client *models.Client) {
 			SenderID:    message.SenderID,
 			ReceiverID:  message.ReceiverID,
 			EventType:   "acknowledgment",
+			TempID:      message.TempID,
 			Status:      models.Received, // Send the status as acknowledgment type
 			CreatedAt:   time.Now(),
 			Delivered:   message.Delivered,
