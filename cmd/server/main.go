@@ -9,15 +9,6 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/dk5761/go-serv/configs"
-	"github.com/dk5761/go-serv/internal/infrastructure/cache"
-	"github.com/dk5761/go-serv/internal/infrastructure/container"
-	"github.com/dk5761/go-serv/internal/infrastructure/database"
-	"github.com/dk5761/go-serv/internal/infrastructure/logging"
-	"github.com/dk5761/go-serv/internal/infrastructure/storage"
-	"github.com/dk5761/go-serv/internal/infrastructure/tracing"
-	"github.com/dk5761/go-serv/internal/routes"
-	"github.com/dk5761/go-serv/migrations"
 	"github.com/gin-gonic/gin"
 	"github.com/jackc/pgx/v4/pgxpool"
 	"go.mongodb.org/mongo-driver/mongo"
@@ -28,6 +19,16 @@ import (
 	"go.opentelemetry.io/otel/sdk/trace"
 	semconv "go.opentelemetry.io/otel/semconv/v1.4.0"
 	"go.uber.org/zap"
+
+	"github.com/dk5761/go-serv/configs"
+	"github.com/dk5761/go-serv/internal/infrastructure/cache"
+	"github.com/dk5761/go-serv/internal/infrastructure/container"
+	"github.com/dk5761/go-serv/internal/infrastructure/database"
+	"github.com/dk5761/go-serv/internal/infrastructure/logging"
+	"github.com/dk5761/go-serv/internal/infrastructure/storage"
+	"github.com/dk5761/go-serv/internal/infrastructure/tracing"
+	"github.com/dk5761/go-serv/internal/routes"
+	"github.com/dk5761/go-serv/migrations"
 )
 
 func main() {
